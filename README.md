@@ -63,7 +63,7 @@ cd figura-unchained/backend
 #### Create a virtual environment
 
 ```bash
-python -m venv venv
+python3 -m venv venv
 ```
 
 #### Activate the environment
@@ -100,7 +100,7 @@ AVATAR_DIR=avatars
 
 ### 🔑 Stable UUID handling(IMPORTANT)
 
-The addon uses a deterministic UUID mapping based on player usernames to ensure consistent identity across sessions in offline-mode environments. This prevents data desync issues when players reconnect or change session state.
+The addon uses a deterministic UUID mapping based on player usernames to save their skins properly.
 Use server plugins like [AuthMeReloaded](https://www.spigotmc.org/resources/authme-reloaded.6269/) in order to have your addon work properly.
 
 #### Start the server
