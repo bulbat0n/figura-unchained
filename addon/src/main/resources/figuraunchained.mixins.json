@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "package": "com.bulbat0n.figuraunchained.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "HttpAPIAccessor",
+    "HttpAPIMixin",
+    "NetworkStuffMixin",
+    "EntityUtilsMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

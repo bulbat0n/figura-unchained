@@ -1,0 +1,27 @@
+plugins {
+    id 'fabric-loom' version '1.17-SNAPSHOT'
+}
+
+base {
+    archivesName = "figura-unchained-${project.mod_version}+mc${project.minecraft_version}+fabric+figura${project.figura_version}"
+} 
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    
+    modImplementation files('libs/figura-0.1.5+1.21.10-fabric-mc.jar')
+    implementation "com.neovisionaries:nv-websocket-client:2.14"
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("fabric.mod.json") { expand "version": project.version }
+}

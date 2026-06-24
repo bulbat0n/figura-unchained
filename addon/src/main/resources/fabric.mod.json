@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "figura_unchained",
+  "version": "1.0.0",
+  "name": "Figura Unchained",
+  "description": "Freedom for non-premium players.",
+  "authors": ["bulbat0n"],
+  "environment": "*",
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "~1.21.10",
+    "figura": "*"
+  },
+  "mixins": [
+    "figuraunchained.mixins.json"
+  ]
+}
