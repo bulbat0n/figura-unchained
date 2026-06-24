@@ -2,7 +2,7 @@
 
 An open-source synchronization backend and companion Fabric addon for self-hosted Figura deployments.
 
-Unlike hosted synchronization services that may require account registration or access authorization, Figura The project is designed for self-hosted environments and does not rely on external paid services or subscriptions.🫣️
+The project is designed for self-hosted environments and does not rely on external paid services or subscriptions.🫣️
 
 The project provides an alternative infrastructure for avatar synchronization in private communities, LAN networks, development environments, and experimental server setups.
 
