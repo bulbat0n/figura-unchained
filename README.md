@@ -49,7 +49,7 @@ You can download the required version here:
 1. Install the required version of Figura.
 2. Download the latest release of Figura Unchained.
 3. Place the addon `.jar` file into your `mods` directory.
-4. Connect to your backend server in mod settings(SERVER_IP:PORT)
+4. Connect to your backend server in mod settings(BACKEND_IP:PORT)
 
 ### Backend Setup
 
@@ -93,9 +93,9 @@ cp .env.example .env
 ```
 
 ```env
-PORT=YOUR_PORT
-DEBUG=false
-AVATAR_DIR=avatars
+PORT=YOUR_PORT(required)
+DEBUG=true/false(false by default)
+AVATAR_DIR=your_avatar_dir(avatars by default)
 ```
 
 ### 🔑 Stable UUID handling(IMPORTANT)
