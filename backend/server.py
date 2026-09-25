@@ -209,5 +209,16 @@ app.router.add_get('/api/ws', websocket_handler)
 app.router.add_get('/api//ws', websocket_handler)
 
 if __name__ == '__main__':
-    log_info(f"Starting Server on port {PORT}...")
-    web.run_app(app, port=PORT, print=None)
+    try:
+        log_info(f"Starting Server on port {PORT}...")
+        web.run_app(app, port=PORT, print=None)
+    except OSError as e:
+        if e.errno in (98, 10048):
+            print(f"\n[FATAL ERROR] Port {PORT} is already in use!")
+            print("HOW TO FIX THIS:")
+            print(f"1. Close the program holding port {PORT} (another server instance maybe?).")
+            print("2. OR open .env, change PORT to a different number (e.g. 52494),")
+            print("   and update the 'Server IP' in Figura mod settings to localhost:new_port")
+            print("\nExiting...")
+        else:
+            raise

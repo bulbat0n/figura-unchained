@@ -6,7 +6,8 @@
     "HttpAPIAccessor",
     "HttpAPIMixin",
     "NetworkStuffMixin",
-    "EntityUtilsMixin"
+    "EntityUtilsMixin",
+    "ConfigsMixin"
   ],
   "injectors": {
     "defaultRequire": 1
