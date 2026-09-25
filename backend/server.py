@@ -1,6 +1,7 @@
 import hashlib
 import uuid
 import os
+import re
 from datetime import datetime
 from aiohttp import web, WSMsgType
 from dotenv import load_dotenv
@@ -14,6 +15,11 @@ AVATAR_DIR = os.environ.get("AVATAR_DIR", "avatars")
 if not os.path.exists(AVATAR_DIR):
     os.makedirs(AVATAR_DIR)
 
+UUID_REGEX = re.compile(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+
+def is_valid_uuid(val):
+    return bool(val and UUID_REGEX.match(val))
+
 def log_info(msg):
     now = datetime.now().strftime('%H:%M:%S.%f')[:-3]
     print(f"[{now}] {msg}")
@@ -25,13 +31,6 @@ def log_debug(msg):
 
 def hex_dump(data):
     return data.hex().upper()
-
-def generate_offline_uuid(username):
-    string = "OfflinePlayer:" + username
-    md5 = bytearray(hashlib.md5(string.encode('utf-8')).digest())
-    md5[6] = (md5[6] & 0x0f) | 0x30
-    md5[8] = (md5[8] & 0x3f) | 0x80
-    return str(uuid.UUID(bytes=bytes(md5)))
 
 def get_file_hash(filepath):
     hasher = hashlib.sha256()
@@ -61,13 +60,6 @@ async def handle_limits(request):
 async def handle_motd(request):
     return web.json_response({"text": "Figura Unchained Backend", "color": "gold"})
 
-async def handle_auth_id(request):
-    username = request.query.get('username')
-    if username:
-        offline_uuid = generate_offline_uuid(username)
-        return web.json_response({"id": offline_uuid, "name": username, "banned": False})
-    return web.json_response({"error": "No username"}, status=400)
-
 async def handle_user_profile(request):
     target_uuid = os.path.basename(request.match_info['uuid'])
     file_path = os.path.join(AVATAR_DIR, f"{target_uuid}.nbt")
@@ -87,12 +79,11 @@ async def download_avatar(request):
     return web.json_response({"error": "Not found"}, status=404)
 
 async def upload_avatar(request):
-    username = request.headers.get('token')
-    if not username:
-        return web.json_response({"error": "No token header"}, status=400)
+    client_uuid = request.headers.get('token')
+    if not is_valid_uuid(client_uuid):
+        return web.json_response({"error": "Invalid or missing UUID token"}, status=400)
 
-    offline_uuid = generate_offline_uuid(username)
-    file_path = os.path.join(AVATAR_DIR, f"{offline_uuid}.nbt")
+    file_path = os.path.join(AVATAR_DIR, f"{client_uuid}.nbt")
     data = await request.read()
     
     if len(data) == 0:
@@ -100,13 +91,13 @@ async def upload_avatar(request):
 
     with open(file_path, 'wb') as f:
         f.write(data)
-    log_info(f"[UPLOAD] {username} saved skin ({len(data)} bytes).")
+    log_info(f"[UPLOAD] UUID {client_uuid[:8]} saved skin ({len(data)} bytes).")
 
-    if offline_uuid in subscriptions:
-        uuid_bytes = uuid.UUID(offline_uuid).bytes
+    if client_uuid in subscriptions:
+        uuid_bytes = uuid.UUID(client_uuid).bytes
         event_packet = b'\x02' + uuid_bytes
-        for sub_uuid in subscriptions[offline_uuid]:
-            if sub_uuid != offline_uuid and sub_uuid in active_connections:
+        for sub_uuid in subscriptions[client_uuid]:
+            if sub_uuid != client_uuid and sub_uuid in active_connections:
                 await active_connections[sub_uuid].send_bytes(event_packet)
                 log_debug(f"[EVENT-OUT] Skin update -> {sub_uuid[:8]}")
 
@@ -116,21 +107,22 @@ async def equip_avatar(request):
     return web.json_response({"status": "success"})
 
 async def delete_avatar(request):
-    username = request.headers.get('token')
-    if username:
-        offline_uuid = generate_offline_uuid(username)
-        file_path = os.path.join(AVATAR_DIR, f"{offline_uuid}.nbt")
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            log_info(f"[DELETE] Deleted skin: {username}")
-            
-            if offline_uuid in subscriptions:
-                uuid_bytes = uuid.UUID(offline_uuid).bytes
-                event_packet = b'\x02' + uuid_bytes
-                for sub_uuid in subscriptions[offline_uuid]:
-                    if sub_uuid != offline_uuid and sub_uuid in active_connections:
-                        await active_connections[sub_uuid].send_bytes(event_packet)
-                        log_debug(f"[EVENT-OUT] Skin deletion -> {sub_uuid[:8]}")
+    client_uuid = request.headers.get('token')
+    if not is_valid_uuid(client_uuid):
+        return web.json_response({"error": "Invalid or missing UUID token"}, status=400)
+
+    file_path = os.path.join(AVATAR_DIR, f"{client_uuid}.nbt")
+    if os.path.exists(file_path):
+        os.remove(file_path)
+        log_info(f"[DELETE] Deleted skin for: {client_uuid[:8]}")
+        
+        if client_uuid in subscriptions:
+            uuid_bytes = uuid.UUID(client_uuid).bytes
+            event_packet = b'\x02' + uuid_bytes
+            for sub_uuid in subscriptions[client_uuid]:
+                if sub_uuid != client_uuid and sub_uuid in active_connections:
+                    await active_connections[sub_uuid].send_bytes(event_packet)
+                    log_debug(f"[EVENT-OUT] Skin deletion -> {sub_uuid[:8]}")
                         
     return web.json_response({"status": "deleted"})
 
@@ -138,14 +130,13 @@ async def websocket_handler(request):
     ws = web.WebSocketResponse(heartbeat=25.0)
     await ws.prepare(request)
     
-    username = request.headers.get('token')
-    if not username:
-        log_info(f"[WS] Connection rejected (no token): {request.remote}")
+    client_uuid = request.headers.get('token')
+    if not is_valid_uuid(client_uuid):
+        log_info(f"[WS] Connection rejected (invalid token): {request.remote}")
         return ws
 
-    my_uuid = generate_offline_uuid(username)
-    active_connections[my_uuid] = ws
-    log_info(f"[WS] + Connected {username}. Online: {len(active_connections)}")
+    active_connections[client_uuid] = ws
+    log_info(f"[WS] + Connected {client_uuid[:8]}. Online: {len(active_connections)}")
     
     try:
         await ws.send_bytes(b'\x00')
@@ -156,13 +147,13 @@ async def websocket_handler(request):
                 cmd = data[0]
                 
                 if cmd == 1:
-                    log_debug(f"[WS-PING-IN] From {username} | RAW: {hex_dump(data)}")
-                    uuid_bytes = uuid.UUID(my_uuid).bytes
+                    log_debug(f"[WS-PING-IN] From {client_uuid[:8]} | RAW: {hex_dump(data)}")
+                    uuid_bytes = uuid.UUID(client_uuid).bytes
                     s2c_packet = data[0:1] + uuid_bytes + data[1:]
                     
-                    if my_uuid in subscriptions:
-                        for sub_uuid in subscriptions[my_uuid]:
-                            if sub_uuid != my_uuid and sub_uuid in active_connections:
+                    if client_uuid in subscriptions:
+                        for sub_uuid in subscriptions[client_uuid]:
+                            if sub_uuid != client_uuid and sub_uuid in active_connections:
                                 await active_connections[sub_uuid].send_bytes(s2c_packet)
                                 log_debug(f"[WS-PING-OUT] To {sub_uuid[:8]} | RAW: {hex_dump(s2c_packet)}")
                 
@@ -170,32 +161,32 @@ async def websocket_handler(request):
                     target_uuid = str(uuid.UUID(bytes=data[1:17]))
                     if target_uuid not in subscriptions:
                         subscriptions[target_uuid] = set()
-                    subscriptions[target_uuid].add(my_uuid)
-                    log_debug(f"[WS-SUB] {username} -> {target_uuid[:8]} | RAW: {hex_dump(data)}")
+                    subscriptions[target_uuid].add(client_uuid)
+                    log_debug(f"[WS-SUB] {client_uuid[:8]} -> {target_uuid[:8]} | RAW: {hex_dump(data)}")
                     
                     uuid_bytes = uuid.UUID(target_uuid).bytes
                     event_packet = b'\x02' + uuid_bytes
                     await ws.send_bytes(event_packet)
-                    log_debug(f"[EVENT-SYNC] Auto-sync sent -> {my_uuid[:8]}")
+                    log_debug(f"[EVENT-SYNC] Auto-sync sent -> {client_uuid[:8]}")
                 
                 elif cmd == 3 and len(data) >= 17:
                     target_uuid = str(uuid.UUID(bytes=data[1:17]))
-                    if target_uuid in subscriptions and my_uuid in subscriptions[target_uuid]:
-                        subscriptions[target_uuid].remove(my_uuid)
-                        log_debug(f"[WS-UNSUB] {username} -/-> {target_uuid[:8]} | RAW: {hex_dump(data)}")
+                    if target_uuid in subscriptions and client_uuid in subscriptions[target_uuid]:
+                        subscriptions[target_uuid].remove(client_uuid)
+                        log_debug(f"[WS-UNSUB] {client_uuid[:8]} -/-> {target_uuid[:8]} | RAW: {hex_dump(data)}")
                 
                 else:
-                    log_debug(f"[WS-UNKNOWN] CMD: {cmd} | From {username} | RAW: {hex_dump(data)}")
+                    log_debug(f"[WS-UNKNOWN] CMD: {cmd} | From {client_uuid[:8]} | RAW: {hex_dump(data)}")
                     
             elif msg.type == WSMsgType.ERROR:
-                log_info(f"[WS] Error in {username}: {ws.exception()}")
+                log_info(f"[WS] Error in {client_uuid[:8]}: {ws.exception()}")
     finally:
-        if my_uuid in active_connections:
-            del active_connections[my_uuid]
+        if client_uuid in active_connections:
+            del active_connections[client_uuid]
         for target in list(subscriptions.keys()):
-            if my_uuid in subscriptions[target]:
-                subscriptions[target].remove(my_uuid)
-        log_info(f"[WS] - Disconnected {username}. Online: {len(active_connections)}")
+            if client_uuid in subscriptions[target]:
+                subscriptions[target].remove(client_uuid)
+        log_info(f"[WS] - Disconnected {client_uuid[:8]}. Online: {len(active_connections)}")
 
     return ws
 
@@ -203,11 +194,9 @@ app = web.Application(middlewares=[request_logger])
 
 app.router.add_get('/api/', handle_api_check)
 app.router.add_get('/api', handle_api_check)
-
 app.router.add_get('/api/version', handle_version)
 app.router.add_get('/api/limits', handle_limits)
 app.router.add_get('/api/motd', handle_motd)
-app.router.add_get('/api/auth/id', handle_auth_id)
 app.router.add_get(r'/api/{uuid:[0-9a-fA-F\-]{36}}', handle_user_profile)
 app.router.add_get(r'/api/avatar/{uuid:[0-9a-fA-F\-]{36}}', download_avatar)
 app.router.add_get(r'/assets/v2/{uuid:[0-9a-fA-F\-]{36}}', download_avatar)
@@ -215,7 +204,6 @@ app.router.add_get(r'/api/{uuid:[0-9a-fA-F\-]{36}}/avatar', download_avatar)
 app.router.add_put('/api/avatar', upload_avatar)
 app.router.add_post('/api/equip', equip_avatar)
 app.router.add_delete('/api/avatar', delete_avatar)
-
 app.router.add_get('/ws', websocket_handler)
 app.router.add_get('/api/ws', websocket_handler)
 app.router.add_get('/api//ws', websocket_handler)

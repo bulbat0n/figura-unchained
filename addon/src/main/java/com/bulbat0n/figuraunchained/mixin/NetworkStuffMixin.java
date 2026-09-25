@@ -36,7 +36,7 @@ public abstract class NetworkStuffMixin {
     @Inject(method = "auth", at = @At("HEAD"), cancellable = true)
     private static void unchainedAuth(CallbackInfo ci) {
         authCheck = 6000;
-        authSuccess(MinecraftClient.getInstance().getSession().getUsername());
+        authSuccess(MinecraftClient.getInstance().getSession().getUuidOrNull().toString());
         fetchMOTD();
         ci.cancel(); 
     }
@@ -44,7 +44,7 @@ public abstract class NetworkStuffMixin {
     @Inject(method = "reAuth", at = @At("HEAD"), cancellable = true)
     private static void unchainedReAuth(CallbackInfo ci) {
         authCheck = 6000;
-        authSuccess(MinecraftClient.getInstance().getSession().getUsername());
+        authSuccess(MinecraftClient.getInstance().getSession().getUuidOrNull().toString());
         fetchMOTD();
         ci.cancel();
     }
@@ -63,7 +63,7 @@ public abstract class NetworkStuffMixin {
                     .setConnectionTimeout(5000)
                     .createSocket(wsUrl);
                     
-            ws.addHeader("token", MinecraftClient.getInstance().getSession().getUsername());
+            ws.addHeader("token", token);
                     
             ws.addListener(new WebSocketAdapter() {
                 @Override
