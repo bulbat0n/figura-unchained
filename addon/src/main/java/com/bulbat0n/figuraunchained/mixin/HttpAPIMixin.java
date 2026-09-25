@@ -13,6 +13,16 @@ public abstract class HttpAPIMixin {
 
     @Inject(method = "getBackendAddress", at = @At("HEAD"), cancellable = true)
     private static void unchainedGetBackendAddress(CallbackInfoReturnable<String> cir) {
-        cir.setReturnValue("http://" + getBackendAddressWithPort() + "/api");
+        String address = getBackendAddressWithPort();
+        
+        if (address.startsWith("http://") || address.startsWith("https://")) {
+            cir.setReturnValue(address + "/api");
+        } 
+        else if (address.startsWith("localhost") || address.matches("^[0-9]{1,3}(\\.[0-9]{1,3}){3}(:[0-9]{1,5})?$")) {
+            cir.setReturnValue("http://" + address + "/api");
+        } 
+        else {
+            cir.setReturnValue("https://" + address + "/api");
+        }
     }
 }
