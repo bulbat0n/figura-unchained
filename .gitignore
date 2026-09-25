@@ -55,6 +55,7 @@ addon/reports/
 backend/.env
 backend/avatars/
 *.log
+.admin_session
 
 # Original mod jar
 addon/libs/

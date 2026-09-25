@@ -2,18 +2,76 @@ import hashlib
 import uuid
 import os
 import re
+import sys
+import time
+import secrets
+import atexit
 from datetime import datetime
 from aiohttp import web, WSMsgType
 from dotenv import load_dotenv
 
+if not os.path.exists(".env"):
+    print("[FATAL ERROR] The .env file is missing!")
+    print("Please create it or rename '.env.example' to '.env' before starting the server.")
+    sys.exit(1)
+
 load_dotenv()
 
-PORT = int(os.environ["PORT"])
-DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
-AVATAR_DIR = os.environ.get("AVATAR_DIR", "avatars")
+REQUIRED_VARS = ["PORT", "DEBUG", "AVATAR_DIR", "MAX_PING_BPS", "MAX_PING_SIZE", "MAX_AVATAR_SIZE"]
+missing_vars = [var for var in REQUIRED_VARS if not os.environ.get(var)]
+
+if missing_vars:
+    print(f"[FATAL ERROR] Missing required variables in .env: {', '.join(missing_vars)}")
+    sys.exit(1)
+
+config_errors = []
+
+try:
+    PORT = int(os.environ.get("PORT"))
+except ValueError:
+    config_errors.append("PORT must be an integer.")
+
+DEBUG_env = os.environ.get("DEBUG").lower()
+if DEBUG_env not in ["true", "false"]:
+    config_errors.append(f"DEBUG must be 'true' or 'false', got '{DEBUG_env}'")
+else:
+    DEBUG = DEBUG_env == "true"
+
+try:
+    MAX_PING_BPS = int(os.environ.get("MAX_PING_BPS"))
+except ValueError:
+    config_errors.append("MAX_PING_BPS must be an integer.")
+
+try:
+    MAX_PING_SIZE = int(os.environ.get("MAX_PING_SIZE"))
+except ValueError:
+    config_errors.append("MAX_PING_SIZE must be an integer.")
+
+try:
+    MAX_AVATAR_SIZE = int(os.environ.get("MAX_AVATAR_SIZE"))
+except ValueError:
+    config_errors.append("MAX_AVATAR_SIZE must be an integer.")
+
+AVATAR_DIR = os.environ.get("AVATAR_DIR")
+
+if config_errors:
+    print("[FATAL ERROR] .env syntax/value errors found:")
+    for err in config_errors:
+        print(f"  - {err}")
+    sys.exit(1)
 
 if not os.path.exists(AVATAR_DIR):
     os.makedirs(AVATAR_DIR)
+
+ADMIN_SESSION_TOKEN = secrets.token_hex(32)
+with open(".admin_session", "w") as f:
+    f.write(ADMIN_SESSION_TOKEN)
+
+def cleanup_admin_session():
+    if os.path.exists(".admin_session"):
+        os.remove(".admin_session")
+
+atexit.register(cleanup_admin_session)
 
 UUID_REGEX = re.compile(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
 
@@ -40,6 +98,7 @@ def get_file_hash(filepath):
 
 active_connections = {}
 subscriptions = {}
+users_with_avatars = set()
 
 @web.middleware
 async def request_logger(request, handler):
@@ -55,7 +114,7 @@ async def handle_version(request):
     return web.json_response({"release": "0.1.5", "prerelease": "0.1.5"})
 
 async def handle_limits(request):
-    return web.json_response({"rate": {"upload": 1000000, "download": 1000000}, "limits": {"maxAvatarSize": 10000000}})
+    return web.json_response({"rate": {"upload": MAX_PING_BPS, "download": MAX_PING_BPS}, "limits": {"maxAvatarSize": MAX_AVATAR_SIZE}})
 
 async def handle_motd(request):
     return web.json_response({"text": "Figura Unchained Backend", "color": "gold"})
@@ -81,16 +140,21 @@ async def download_avatar(request):
 async def upload_avatar(request):
     client_uuid = request.headers.get('token')
     if not is_valid_uuid(client_uuid):
-        return web.json_response({"error": "Invalid or missing UUID token"}, status=400)
+        return web.json_response({"error": "Invalid token"}, status=400)
 
-    file_path = os.path.join(AVATAR_DIR, f"{client_uuid}.nbt")
     data = await request.read()
     
     if len(data) == 0:
         return web.json_response({"error": "Empty file"}, status=400)
+        
+    if len(data) > MAX_AVATAR_SIZE:
+        return web.json_response({"error": "File exceeds MAX_AVATAR_SIZE"}, status=413)
 
+    file_path = os.path.join(AVATAR_DIR, f"{client_uuid}.nbt")
     with open(file_path, 'wb') as f:
         f.write(data)
+        
+    users_with_avatars.add(client_uuid)
     log_info(f"[UPLOAD] UUID {client_uuid[:8]} saved skin ({len(data)} bytes).")
 
     if client_uuid in subscriptions:
@@ -109,11 +173,12 @@ async def equip_avatar(request):
 async def delete_avatar(request):
     client_uuid = request.headers.get('token')
     if not is_valid_uuid(client_uuid):
-        return web.json_response({"error": "Invalid or missing UUID token"}, status=400)
+        return web.json_response({"error": "Invalid token"}, status=400)
 
     file_path = os.path.join(AVATAR_DIR, f"{client_uuid}.nbt")
     if os.path.exists(file_path):
         os.remove(file_path)
+        users_with_avatars.discard(client_uuid)
         log_info(f"[DELETE] Deleted skin for: {client_uuid[:8]}")
         
         if client_uuid in subscriptions:
@@ -126,6 +191,41 @@ async def delete_avatar(request):
                         
     return web.json_response({"status": "deleted"})
 
+async def handle_admin_broadcast(request):
+    proxy_headers = ["X-Forwarded-For", "X-Real-IP", "Forwarded", "True-Client-IP", "CF-Connecting-IP", "X-Client-IP"]
+    if any(h in request.headers for h in proxy_headers):
+        return web.json_response({"error": "Network block"}, status=403)
+        
+    if request.remote not in ['127.0.0.1', '::1', 'localhost']:
+        return web.json_response({"error": "Network block"}, status=403)
+        
+    auth_header = request.headers.get("Authorization")
+    if auth_header != f"Bearer {ADMIN_SESSION_TOKEN}":
+        return web.json_response({"error": "Unauthorized"}, status=401)
+        
+    body = await request.json()
+    b_type = body.get("type")
+    
+    packet = None
+    if b_type == "chat":
+        msg = body.get("message", "")
+        packet = b'\x04' + msg.encode('utf-8')
+    elif b_type == "toast":
+        t_type = int(body.get("toast_type", 0))
+        title = body.get("title", "")
+        desc = body.get("desc", "")
+        packet = b'\x03' + bytes([t_type]) + title.encode('utf-8') + b'\0' + desc.encode('utf-8')
+    else:
+        return web.json_response({"error": "Invalid type."}, status=400)
+        
+    count = 0
+    for ws in active_connections.values():
+        await ws.send_bytes(packet)
+        count += 1
+        
+    log_info(f"[ADMIN] Broadcasted {b_type} to {count} users.")
+    return web.json_response({"status": "success", "broadcasted_to": count})
+
 async def websocket_handler(request):
     ws = web.WebSocketResponse(heartbeat=25.0)
     await ws.prepare(request)
@@ -135,8 +235,17 @@ async def websocket_handler(request):
         log_info(f"[WS] Connection rejected (invalid token): {request.remote}")
         return ws
 
+    file_path = os.path.join(AVATAR_DIR, f"{client_uuid}.nbt")
+    if os.path.exists(file_path):
+        users_with_avatars.add(client_uuid)
+    else:
+        users_with_avatars.discard(client_uuid)
+
     active_connections[client_uuid] = ws
     log_info(f"[WS] + Connected {client_uuid[:8]}. Online: {len(active_connections)}")
+    
+    ping_bytes_sec = 0
+    ping_reset_time = time.time()
     
     try:
         await ws.send_bytes(b'\x00')
@@ -146,7 +255,29 @@ async def websocket_handler(request):
                 data = msg.data
                 cmd = data[0]
                 
-                if cmd == 1:
+                if cmd == 0:
+                    log_debug(f"[WS-TOKEN] Ignored token packet from {client_uuid[:8]}")
+                    
+                elif cmd == 1:
+                    if client_uuid not in users_with_avatars:
+                        continue
+                        
+                    if len(data) > MAX_PING_SIZE:
+                        log_debug(f"[WS-PING-LIMIT] {client_uuid[:8]} exceeded size ({len(data)} bytes)")
+                        await ws.send_bytes(b'\x05\x00') 
+                        continue
+                        
+                    current_time = time.time()
+                    if current_time - ping_reset_time > 1.0:
+                        ping_bytes_sec = 0
+                        ping_reset_time = current_time
+                        
+                    ping_bytes_sec += len(data)
+                    if ping_bytes_sec > MAX_PING_BPS:
+                        log_debug(f"[WS-PING-LIMIT] {client_uuid[:8]} exceeded rate limit")
+                        await ws.send_bytes(b'\x05\x01')
+                        continue
+
                     log_debug(f"[WS-PING-IN] From {client_uuid[:8]} | RAW: {hex_dump(data)}")
                     uuid_bytes = uuid.UUID(client_uuid).bytes
                     s2c_packet = data[0:1] + uuid_bytes + data[1:]
@@ -162,22 +293,14 @@ async def websocket_handler(request):
                     if target_uuid not in subscriptions:
                         subscriptions[target_uuid] = set()
                     subscriptions[target_uuid].add(client_uuid)
-                    log_debug(f"[WS-SUB] {client_uuid[:8]} -> {target_uuid[:8]} | RAW: {hex_dump(data)}")
-                    
-                    uuid_bytes = uuid.UUID(target_uuid).bytes
-                    event_packet = b'\x02' + uuid_bytes
-                    await ws.send_bytes(event_packet)
-                    log_debug(f"[EVENT-SYNC] Auto-sync sent -> {client_uuid[:8]}")
+                    log_debug(f"[WS-SUB] {client_uuid[:8]} -> {target_uuid[:8]}")
                 
                 elif cmd == 3 and len(data) >= 17:
                     target_uuid = str(uuid.UUID(bytes=data[1:17]))
                     if target_uuid in subscriptions and client_uuid in subscriptions[target_uuid]:
                         subscriptions[target_uuid].remove(client_uuid)
-                        log_debug(f"[WS-UNSUB] {client_uuid[:8]} -/-> {target_uuid[:8]} | RAW: {hex_dump(data)}")
+                        log_debug(f"[WS-UNSUB] {client_uuid[:8]} -/-> {target_uuid[:8]}")
                 
-                else:
-                    log_debug(f"[WS-UNKNOWN] CMD: {cmd} | From {client_uuid[:8]} | RAW: {hex_dump(data)}")
-                    
             elif msg.type == WSMsgType.ERROR:
                 log_info(f"[WS] Error in {client_uuid[:8]}: {ws.exception()}")
     finally:
@@ -204,6 +327,7 @@ app.router.add_get(r'/api/{uuid:[0-9a-fA-F\-]{36}}/avatar', download_avatar)
 app.router.add_put('/api/avatar', upload_avatar)
 app.router.add_post('/api/equip', equip_avatar)
 app.router.add_delete('/api/avatar', delete_avatar)
+app.router.add_post('/api/admin/broadcast', handle_admin_broadcast)
 app.router.add_get('/ws', websocket_handler)
 app.router.add_get('/api/ws', websocket_handler)
 app.router.add_get('/api//ws', websocket_handler)
@@ -216,8 +340,8 @@ if __name__ == '__main__':
         if e.errno in (98, 10048):
             print(f"\n[FATAL ERROR] Port {PORT} is already in use!")
             print("HOW TO FIX THIS:")
-            print(f"1. Close the program holding port {PORT} (another server instance maybe?).")
-            print("2. OR open .env, change PORT to a different number (e.g. 52494),")
+            print(f"1. Close the program holding port {PORT}")
+            print("2. OR open .env, change PORT to a different number")
             print("   and update the 'Server IP' in Figura mod settings to localhost:new_port")
             print("\nExiting...")
         else:

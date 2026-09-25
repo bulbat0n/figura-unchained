@@ -10,6 +10,6 @@ public abstract class ConfigsMixin {
 
     @ModifyConstant(method = "<clinit>", constant = @Constant(stringValue = "figura.moonlight-devs.org"))
     private static String unchainedChangeDefaultIP(String original) {
-        return "localhost:52493";
+        return "localhost:55000";
     }
 }
