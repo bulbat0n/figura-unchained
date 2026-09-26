@@ -12,11 +12,11 @@ except KeyError:
     print("Error: Missing PORT in .env")
     sys.exit(1)
 
-if not os.path.exists(".admin_session"):
-    print("Error: Server is not running or .admin_session is missing!")
+if not os.path.exists("data/.admin_session"):
+    print("Error: Server is not running or data/.admin_session is missing!")
     sys.exit(1)
 
-with open(".admin_session", "r") as f:
+with open("data/.admin_session", "r") as f:
     TOKEN = f.read().strip()
 
 URL = f"http://127.0.0.1:{PORT}/api/admin/broadcast"

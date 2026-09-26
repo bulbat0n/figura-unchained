@@ -11,6 +11,11 @@
     "minecraft": "~1.21.10",
     "figura": "*"
   },
+  "entrypoints": {
+    "client": [
+      "com.bulbat0n.figuraunchained.FiguraUnchainedClient"
+    ]
+  },
   "mixins": [
     "figuraunchained.mixins.json"
   ]

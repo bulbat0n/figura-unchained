@@ -6,7 +6,10 @@ import sys
 import time
 import secrets
 import atexit
-from datetime import datetime
+import sqlite3
+import bcrypt
+import jwt
+from datetime import datetime, timedelta, timezone
 from aiohttp import web, WSMsgType
 from dotenv import load_dotenv
 
@@ -17,7 +20,7 @@ if not os.path.exists(".env"):
 
 load_dotenv()
 
-REQUIRED_VARS = ["PORT", "DEBUG", "AVATAR_DIR", "MAX_PING_BPS", "MAX_PING_SIZE", "MAX_AVATAR_SIZE"]
+REQUIRED_VARS = ["PORT", "DEBUG", "AVATAR_DIR", "MAX_PING_BPS", "MAX_PING_SIZE", "MAX_AVATAR_SIZE", "REQUIRE_AUTH"]
 missing_vars = [var for var in REQUIRED_VARS if not os.environ.get(var)]
 
 if missing_vars:
@@ -36,6 +39,12 @@ if DEBUG_env not in ["true", "false"]:
     config_errors.append(f"DEBUG must be 'true' or 'false', got '{DEBUG_env}'")
 else:
     DEBUG = DEBUG_env == "true"
+    
+REQUIRE_AUTH_env = os.environ.get("REQUIRE_AUTH", "").lower()
+if REQUIRE_AUTH_env not in ["true", "false"]:
+    config_errors.append(f"REQUIRE_AUTH must be 'true' or 'false', got '{REQUIRE_AUTH_env}'")
+else:
+    REQUIRE_AUTH = REQUIRE_AUTH_env == "true"
 
 try:
     MAX_PING_BPS = int(os.environ.get("MAX_PING_BPS"))
@@ -63,13 +72,28 @@ if config_errors:
 if not os.path.exists(AVATAR_DIR):
     os.makedirs(AVATAR_DIR)
 
+os.makedirs("data", exist_ok=True)
+
+db_conn = sqlite3.connect('data/users.db', check_same_thread=False)
+db_conn.execute('CREATE TABLE IF NOT EXISTS users (uuid TEXT PRIMARY KEY, password_hash TEXT)')
+db_conn.commit()
+
 ADMIN_SESSION_TOKEN = secrets.token_hex(32)
-with open(".admin_session", "w") as f:
+with open("data/.admin_session", "w") as f:
     f.write(ADMIN_SESSION_TOKEN)
 
+JWT_SECRET_FILE = "data/.jwt_secret"
+if not os.path.exists(JWT_SECRET_FILE):
+    JWT_SECRET = secrets.token_hex(64)
+    with open(JWT_SECRET_FILE, "w") as f:
+        f.write(JWT_SECRET)
+else:
+    with open(JWT_SECRET_FILE, "r") as f:
+        JWT_SECRET = f.read().strip()
+
 def cleanup_admin_session():
-    if os.path.exists(".admin_session"):
-        os.remove(".admin_session")
+    if os.path.exists("data/.admin_session"):
+        os.remove("data/.admin_session")
 
 atexit.register(cleanup_admin_session)
 
@@ -96,13 +120,34 @@ def get_file_hash(filepath):
         hasher.update(f.read())
     return hasher.hexdigest()
 
+def check_auth(request, client_uuid):
+    if not REQUIRE_AUTH:
+        return True
+        
+    token = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+    else:
+        raw_token = request.headers.get("token", "")
+        if ":" in raw_token:
+            token = raw_token.split(":", 1)[1]
+            
+    if token:
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            return payload.get("uuid") == client_uuid
+        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+            return False
+    return False
+
 active_connections = {}
 subscriptions = {}
 users_with_avatars = set()
 
 @web.middleware
 async def request_logger(request, handler):
-    ignore_logs = ['/api/version', '/api/limits', '/api/motd', '/api/', '/api']
+    ignore_logs = ['/api/version', '/api/limits', '/api/motd', '/api/', '/api', '/api/auth/register', '/api/auth/login']
     if request.path not in ignore_logs:
         log_debug(f"[HTTP] {request.method} {request.path} | From: {request.remote}")
     return await handler(request)
@@ -118,6 +163,46 @@ async def handle_limits(request):
 
 async def handle_motd(request):
     return web.json_response({"text": "Figura Unchained Backend", "color": "gold"})
+
+async def handle_register(request):
+    body = await request.json()
+    client_uuid = body.get("uuid")
+    client_hash = body.get("hash")
+    
+    if not is_valid_uuid(client_uuid) or not client_hash:
+        return web.json_response({"error": "Invalid data format"}, status=400)
+        
+    cursor = db_conn.cursor()
+    cursor.execute("SELECT uuid FROM users WHERE uuid = ?", (client_uuid,))
+    if cursor.fetchone():
+        return web.json_response({"error": "Already registered. Please login."}, status=409)
+        
+    hashed_pw = bcrypt.hashpw(client_hash.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    cursor.execute("INSERT INTO users (uuid, password_hash) VALUES (?, ?)", (client_uuid, hashed_pw))
+    db_conn.commit()
+    
+    token = jwt.encode({"uuid": client_uuid, "exp": datetime.now(timezone.utc) + timedelta(days=30)}, JWT_SECRET, algorithm="HS256")
+    log_info(f"[AUTH] Registered UUID {client_uuid[:8]}")
+    return web.json_response({"status": "success", "token": token})
+
+async def handle_login(request):
+    body = await request.json()
+    client_uuid = body.get("uuid")
+    client_hash = body.get("hash")
+    
+    if not is_valid_uuid(client_uuid) or not client_hash:
+        return web.json_response({"error": "Invalid data format"}, status=400)
+        
+    cursor = db_conn.cursor()
+    cursor.execute("SELECT password_hash FROM users WHERE uuid = ?", (client_uuid,))
+    row = cursor.fetchone()
+    
+    if not row or not bcrypt.checkpw(client_hash.encode('utf-8'), row[0].encode('utf-8')):
+        return web.json_response({"error": "Invalid password or UUID"}, status=401)
+        
+    token = jwt.encode({"uuid": client_uuid, "exp": datetime.now(timezone.utc) + timedelta(days=30)}, JWT_SECRET, algorithm="HS256")
+    log_info(f"[AUTH] Logged in UUID {client_uuid[:8]}")
+    return web.json_response({"status": "success", "token": token})
 
 async def handle_user_profile(request):
     target_uuid = os.path.basename(request.match_info['uuid'])
@@ -138,9 +223,14 @@ async def download_avatar(request):
     return web.json_response({"error": "Not found"}, status=404)
 
 async def upload_avatar(request):
-    client_uuid = request.headers.get('token')
+    raw_token = request.headers.get('token', '')
+    client_uuid = raw_token.split(':')[0] if ':' in raw_token else raw_token
+    
     if not is_valid_uuid(client_uuid):
         return web.json_response({"error": "Invalid token"}, status=400)
+        
+    if not check_auth(request, client_uuid):
+        return web.json_response({"error": "Unauthorized. Please login."}, status=401)
 
     data = await request.read()
     
@@ -171,9 +261,14 @@ async def equip_avatar(request):
     return web.json_response({"status": "success"})
 
 async def delete_avatar(request):
-    client_uuid = request.headers.get('token')
+    raw_token = request.headers.get('token', '')
+    client_uuid = raw_token.split(':')[0] if ':' in raw_token else raw_token
+    
     if not is_valid_uuid(client_uuid):
         return web.json_response({"error": "Invalid token"}, status=400)
+        
+    if not check_auth(request, client_uuid):
+        return web.json_response({"error": "Unauthorized. Please login."}, status=401)
 
     file_path = os.path.join(AVATAR_DIR, f"{client_uuid}.nbt")
     if os.path.exists(file_path):
@@ -230,10 +325,14 @@ async def websocket_handler(request):
     ws = web.WebSocketResponse(heartbeat=25.0)
     await ws.prepare(request)
     
-    client_uuid = request.headers.get('token')
+    raw_token = request.headers.get('token', '')
+    client_uuid = raw_token.split(':')[0] if ':' in raw_token else raw_token
+    
     if not is_valid_uuid(client_uuid):
         log_info(f"[WS] Connection rejected (invalid token): {request.remote}")
         return ws
+        
+    is_authenticated = check_auth(request, client_uuid)
 
     file_path = os.path.join(AVATAR_DIR, f"{client_uuid}.nbt")
     if os.path.exists(file_path):
@@ -242,13 +341,21 @@ async def websocket_handler(request):
         users_with_avatars.discard(client_uuid)
 
     active_connections[client_uuid] = ws
-    log_info(f"[WS] + Connected {client_uuid[:8]}. Online: {len(active_connections)}")
+    log_info(f"[WS] + Connected {client_uuid[:8]} (Auth: {is_authenticated}). Online: {len(active_connections)}")
     
     ping_bytes_sec = 0
     ping_reset_time = time.time()
     
     try:
         await ws.send_bytes(b'\x00')
+        
+        if REQUIRE_AUTH:
+            if not is_authenticated:
+                toast_packet = b'\x03\x02' + "Auth Required".encode('utf-8') + b'\x00' + "Type /figura-unchained register <password>".encode('utf-8')
+                await ws.send_bytes(toast_packet)
+            else:
+                toast_packet = b'\x03\x00' + "Authenticated".encode('utf-8') + b'\x00' + "Connected securely.".encode('utf-8')
+                await ws.send_bytes(toast_packet)
         
         async for msg in ws:
             if msg.type == WSMsgType.BINARY:
@@ -259,6 +366,11 @@ async def websocket_handler(request):
                     log_debug(f"[WS-TOKEN] Ignored token packet from {client_uuid[:8]}")
                     
                 elif cmd == 1:
+                    if not is_authenticated:
+                        toast_packet = b'\x03\x02' + "Auth Required".encode('utf-8') + b'\x00' + "Please login to animate.".encode('utf-8')
+                        await ws.send_bytes(toast_packet)
+                        continue
+
                     if client_uuid not in users_with_avatars:
                         continue
                         
@@ -320,6 +432,8 @@ app.router.add_get('/api', handle_api_check)
 app.router.add_get('/api/version', handle_version)
 app.router.add_get('/api/limits', handle_limits)
 app.router.add_get('/api/motd', handle_motd)
+app.router.add_post('/api/auth/register', handle_register)
+app.router.add_post('/api/auth/login', handle_login)
 app.router.add_get(r'/api/{uuid:[0-9a-fA-F\-]{36}}', handle_user_profile)
 app.router.add_get(r'/api/avatar/{uuid:[0-9a-fA-F\-]{36}}', download_avatar)
 app.router.add_get(r'/assets/v2/{uuid:[0-9a-fA-F\-]{36}}', download_avatar)

@@ -36,7 +36,12 @@ public abstract class NetworkStuffMixin {
     @Inject(method = "auth", at = @At("HEAD"), cancellable = true)
     private static void unchainedAuth(CallbackInfo ci) {
         authCheck = 6000;
-        authSuccess(MinecraftClient.getInstance().getSession().getUuidOrNull().toString());
+        com.bulbat0n.figuraunchained.auth.UnchainedAuth.init();
+        String tokenPayload = MinecraftClient.getInstance().getSession().getUuidOrNull().toString();
+        if (com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT != null && !com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT.isEmpty()) {
+            tokenPayload += ":" + com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT;
+        }
+        authSuccess(tokenPayload);
         fetchMOTD();
         ci.cancel(); 
     }
@@ -44,13 +49,18 @@ public abstract class NetworkStuffMixin {
     @Inject(method = "reAuth", at = @At("HEAD"), cancellable = true)
     private static void unchainedReAuth(CallbackInfo ci) {
         authCheck = 6000;
-        authSuccess(MinecraftClient.getInstance().getSession().getUuidOrNull().toString());
+        com.bulbat0n.figuraunchained.auth.UnchainedAuth.init();
+        String tokenPayload = MinecraftClient.getInstance().getSession().getUuidOrNull().toString();
+        if (com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT != null && !com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT.isEmpty()) {
+            tokenPayload += ":" + com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT;
+        }
+        authSuccess(tokenPayload);
         fetchMOTD();
         ci.cancel();
     }
 
     @Inject(method = "connectWS", at = @At("HEAD"), cancellable = true)
-    private static void unchainedConnectWS(String token, CallbackInfo ci) {
+    private static void unchainedConnectWS(String tokenPayload, CallbackInfo ci) {
         if (ws != null) ws.disconnect();
         try {
             String wsUrl = HttpAPIAccessor.invokeGetUri("/ws").toString()
@@ -62,8 +72,15 @@ public abstract class NetworkStuffMixin {
             ws = new WebSocketFactory()
                     .setConnectionTimeout(5000)
                     .createSocket(wsUrl);
+            
+            String uuid = tokenPayload;
+            if (tokenPayload.contains(":")) {
+                String[] parts = tokenPayload.split(":", 2);
+                uuid = parts[0];
+                ws.addHeader("Authorization", "Bearer " + parts[1]);
+            }
                     
-            ws.addHeader("token", token);
+            ws.addHeader("token", uuid);
                     
             ws.addListener(new WebSocketAdapter() {
                 @Override
