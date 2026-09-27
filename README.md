@@ -98,11 +98,6 @@ DEBUG=true/false(false by default)
 AVATAR_DIR=your_avatar_dir(avatars by default)
 ```
 
-### 🔑 Stable UUID handling(IMPORTANT)
-
-The addon uses a deterministic UUID mapping based on player usernames to save their skins properly.
-Use server plugins like [AuthMeReloaded](https://www.spigotmc.org/resources/authme-reloaded.6269/) in order to have your addon work properly.
-
 #### Start the server
 
 ```bash
