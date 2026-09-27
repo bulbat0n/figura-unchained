@@ -25,7 +25,9 @@ load_dotenv()
 REQUIRED_VARS = [
     "PORT", "DEBUG", "AVATAR_DIR", "MAX_PING_BPS", 
     "MAX_PING_SIZE", "MAX_AVATAR_SIZE", "REQUIRE_AUTH",
-    "RATE_LIMIT_REQUESTS", "RATE_LIMIT_WINDOW", "TRUSTED_PROXIES"
+    "RATE_LIMIT_REQUESTS", "RATE_LIMIT_WINDOW", "TRUSTED_PROXIES",
+    "RATE_LIMIT_CLEANUP_INTERVAL", "WS_MAX_CONNECTIONS_PER_IP",
+    "WS_MAX_MESSAGES_PER_SEC", "WS_MAX_SUBS_PER_CLIENT"
 ]
 
 missing_vars = [var for var in REQUIRED_VARS if not os.environ.get(var)]
@@ -59,8 +61,12 @@ try:
     MAX_AVATAR_SIZE = int(os.environ.get("MAX_AVATAR_SIZE"))
     RATE_LIMIT_REQUESTS = int(os.environ.get("RATE_LIMIT_REQUESTS"))
     RATE_LIMIT_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW"))
+    RATE_LIMIT_CLEANUP_INTERVAL = int(os.environ.get("RATE_LIMIT_CLEANUP_INTERVAL"))
+    WS_MAX_CONNECTIONS_PER_IP = int(os.environ.get("WS_MAX_CONNECTIONS_PER_IP"))
+    WS_MAX_MESSAGES_PER_SEC = int(os.environ.get("WS_MAX_MESSAGES_PER_SEC"))
+    WS_MAX_SUBS_PER_CLIENT = int(os.environ.get("WS_MAX_SUBS_PER_CLIENT"))
 except ValueError:
-    config_errors.append("Rate limits and size limits must be integers.")
+    config_errors.append("Limits and intervals must be integers.")
 
 AVATAR_DIR = os.environ.get("AVATAR_DIR")
 
@@ -86,7 +92,7 @@ if not os.path.exists(AVATAR_DIR):
 os.makedirs("data", exist_ok=True)
 
 db_conn = sqlite3.connect('data/users.db', check_same_thread=False)
-db_conn.execute('CREATE TABLE IF NOT EXISTS users (uuid TEXT PRIMARY KEY, password_hash TEXT)')
+db_conn.execute('CREATE TABLE IF NOT EXISTS users (uuid TEXT PRIMARY KEY, password_hash TEXT, last_ip TEXT)')
 db_conn.commit()
 
 ADMIN_SESSION_TOKEN = secrets.token_hex(32)
@@ -132,23 +138,27 @@ def get_file_hash_sync(filepath):
             hasher.update(chunk)
     return hasher.hexdigest()
 
-def db_register_sync(client_uuid, client_hash):
+def db_register_sync(client_uuid, client_hash, real_ip):
     cursor = db_conn.cursor()
     cursor.execute("SELECT uuid FROM users WHERE uuid = ?", (client_uuid,))
     if cursor.fetchone():
         return False
     hashed_pw = bcrypt.hashpw(client_hash.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    cursor.execute("INSERT INTO users (uuid, password_hash) VALUES (?, ?)", (client_uuid, hashed_pw))
+    cursor.execute("INSERT INTO users (uuid, password_hash, last_ip) VALUES (?, ?, ?)", (client_uuid, hashed_pw, real_ip))
     db_conn.commit()
     return True
 
-def db_login_sync(client_uuid, client_hash):
+def db_login_sync(client_uuid, client_hash, real_ip):
     cursor = db_conn.cursor()
     cursor.execute("SELECT password_hash FROM users WHERE uuid = ?", (client_uuid,))
     row = cursor.fetchone()
     if not row:
         return False
-    return bcrypt.checkpw(client_hash.encode('utf-8'), row[0].encode('utf-8'))
+    if bcrypt.checkpw(client_hash.encode('utf-8'), row[0].encode('utf-8')):
+        cursor.execute("UPDATE users SET last_ip = ? WHERE uuid = ?", (real_ip, client_uuid))
+        db_conn.commit()
+        return True
+    return False
 
 def check_auth(request, client_uuid):
     if not REQUIRE_AUTH:
@@ -192,6 +202,7 @@ subscriptions = {}
 users_with_avatars = set()
 rate_limits = {}
 hash_cache = {}
+ip_connections = {}
 
 @web.middleware
 async def security_middleware(request, handler):
@@ -236,7 +247,7 @@ async def handle_register(request):
     if not is_valid_uuid(client_uuid) or not client_hash:
         return web.json_response({"error": "Invalid data format"}, status=400)
         
-    success = await asyncio.to_thread(db_register_sync, client_uuid, client_hash)
+    success = await asyncio.to_thread(db_register_sync, client_uuid, client_hash, request['real_ip'])
     if not success:
         return web.json_response({"error": "Already registered. Please login."}, status=409)
     
@@ -252,7 +263,7 @@ async def handle_login(request):
     if not is_valid_uuid(client_uuid) or not client_hash:
         return web.json_response({"error": "Invalid data format"}, status=400)
         
-    success = await asyncio.to_thread(db_login_sync, client_uuid, client_hash)
+    success = await asyncio.to_thread(db_login_sync, client_uuid, client_hash, request['real_ip'])
     if not success:
         return web.json_response({"error": "Invalid password or UUID"}, status=401)
         
@@ -296,10 +307,26 @@ async def upload_avatar(request):
         return web.json_response({"error": "File exceeds MAX_AVATAR_SIZE"}, status=413)
 
     file_path = os.path.join(AVATAR_DIR, f"{client_uuid}.nbt")
-    
     loop = asyncio.get_running_loop()
+    
+    try:
+        first_chunk_data = await request.content.read(65536)
+    except Exception:
+        return web.json_response({"error": "Read error"}, status=400)
+
+    if not first_chunk_data:
+        return web.json_response({"error": "Empty file"}, status=400)
+
+    if len(first_chunk_data) < 2 or first_chunk_data[:2] != b'\x1f\x8b':
+        return web.json_response({"error": "Invalid format. Only compressed NBT allowed."}, status=400)
+    
+    if len(first_chunk_data) > MAX_AVATAR_SIZE:
+        return web.json_response({"error": "File exceeds MAX_AVATAR_SIZE"}, status=413)
+    
+    bytes_written = len(first_chunk_data)
     with open(file_path, 'wb') as f:
-        bytes_written = 0
+        await loop.run_in_executor(None, f.write, first_chunk_data)
+        
         async for chunk in request.content.iter_chunked(65536):
             bytes_written += len(chunk)
             if bytes_written > MAX_AVATAR_SIZE:
@@ -354,8 +381,16 @@ async def delete_avatar(request):
 async def handle_admin_broadcast(request):
     real_ip = request['real_ip']
     
-    if real_ip not in ['127.0.0.1', '::1'] and not real_ip.startswith('172.'):
-        return web.json_response({"error": "Network block"}, status=403)
+    try:
+        ip_obj = ipaddress.ip_address(real_ip)        
+        is_local = ip_obj.is_loopback
+        is_docker = ip_obj in ipaddress.ip_network('172.16.0.0/12')
+        
+        if not (is_local or is_docker):
+            return web.json_response({"error": "Network block"}, status=403)
+            
+    except ValueError:
+        return web.json_response({"error": "Invalid IP"}, status=400)
         
     auth_header = request.headers.get("Authorization")
     if auth_header != f"Bearer {ADMIN_SESSION_TOKEN}":
@@ -385,118 +420,167 @@ async def handle_admin_broadcast(request):
     return web.json_response({"status": "success", "broadcasted_to": count})
 
 async def websocket_handler(request):
-    ws = web.WebSocketResponse(heartbeat=25.0)
-    await ws.prepare(request)
-    
-    raw_token = request.headers.get('token', '')
-    client_uuid = raw_token.split(':')[0] if ':' in raw_token else raw_token
-    
-    if not is_valid_uuid(client_uuid):
-        log_info(f"[WS] Connection rejected (invalid token) from IP: {request['real_ip']}")
-        return ws
-        
-    is_authenticated = check_auth(request, client_uuid)
+    real_ip = request['real_ip']
+    if ip_connections.get(real_ip, 0) >= WS_MAX_CONNECTIONS_PER_IP:
+        return web.Response(status=429)
 
-    file_path = os.path.join(AVATAR_DIR, f"{client_uuid}.nbt")
-    if os.path.exists(file_path):
-        users_with_avatars.add(client_uuid)
-    else:
-        users_with_avatars.discard(client_uuid)
-
-    active_connections[client_uuid] = ws
-    log_info(f"[WS] + Connected {client_uuid[:8]} (Auth: {is_authenticated}). Online: {len(active_connections)}")
-    
-    ping_bytes_sec = 0
-    ping_reset_time = time.time()
+    ip_connections[real_ip] = ip_connections.get(real_ip, 0) + 1
     
     try:
-        await ws.send_bytes(b'\x00')
+        ws = web.WebSocketResponse(heartbeat=25.0)
+        await ws.prepare(request)
         
-        if REQUIRE_AUTH:
-            if not is_authenticated:
-                toast_packet = b'\x03\x02' + "Auth Required".encode('utf-8') + b'\x00' + "Type /figura-unchained register <password>".encode('utf-8')
-                await ws.send_bytes(toast_packet)
-            else:
-                toast_packet = b'\x03\x00' + "Authenticated".encode('utf-8') + b'\x00' + "Connected securely.".encode('utf-8')
-                await ws.send_bytes(toast_packet)
+        raw_token = request.headers.get('token', '')
+        client_uuid = raw_token.split(':')[0] if ':' in raw_token else raw_token
         
-        async for msg in ws:
-            if msg.type == WSMsgType.BINARY:
-                data = msg.data
-                cmd = data[0]
-                
-                if cmd == 0:
-                    log_debug(f"[WS-TOKEN] Ignored token packet from {client_uuid[:8]}")
-                    
-                elif cmd == 1:
-                    if not is_authenticated:
-                        toast_packet = b'\x03\x02' + "Auth Required".encode('utf-8') + b'\x00' + "Please login to animate.".encode('utf-8')
-                        await ws.send_bytes(toast_packet)
-                        continue
+        if not is_valid_uuid(client_uuid):
+            log_info(f"[WS] Connection rejected (invalid token) from IP: {real_ip}")
+            return ws
+            
+        is_authenticated = check_auth(request, client_uuid)
 
-                    if client_uuid not in users_with_avatars:
-                        continue
-                        
-                    if len(data) > MAX_PING_SIZE:
-                        log_debug(f"[WS-PING-LIMIT] {client_uuid[:8]} exceeded size ({len(data)} bytes)")
-                        await ws.send_bytes(b'\x05\x00') 
-                        continue
-                        
+        file_path = os.path.join(AVATAR_DIR, f"{client_uuid}.nbt")
+        if os.path.exists(file_path):
+            users_with_avatars.add(client_uuid)
+        else:
+            users_with_avatars.discard(client_uuid)
+
+        active_connections[client_uuid] = ws
+        log_info(f"[WS] + Connected {client_uuid[:8]} (Auth: {is_authenticated}). Online: {len(active_connections)}")
+        
+        ping_bytes_sec = 0
+        ping_reset_time = time.time()
+        msg_count = 0
+        msg_reset_time = time.time()
+        client_subs = 0
+        
+        try:
+            await ws.send_bytes(b'\x00')
+            
+            if REQUIRE_AUTH:
+                if not is_authenticated:
+                    toast_packet = b'\x03\x02' + "Auth Required".encode('utf-8') + b'\x00' + "Type /figura-unchained register <password>".encode('utf-8')
+                    await ws.send_bytes(toast_packet)
+                else:
+                    toast_packet = b'\x03\x00' + "Authenticated".encode('utf-8') + b'\x00' + "Connected securely.".encode('utf-8')
+                    await ws.send_bytes(toast_packet)
+            
+            async for msg in ws:
+                if msg.type == WSMsgType.BINARY:
+                    data = msg.data
+                    cmd = data[0]
+                    
                     current_time = time.time()
-                    if current_time - ping_reset_time > 1.0:
-                        ping_bytes_sec = 0
-                        ping_reset_time = current_time
-                        
-                    ping_bytes_sec += len(data)
-                    if ping_bytes_sec > MAX_PING_BPS:
-                        log_debug(f"[WS-PING-LIMIT] {client_uuid[:8]} exceeded rate limit")
+                    if current_time - msg_reset_time > 1.0:
+                        msg_count = 0
+                        msg_reset_time = current_time
+                    msg_count += 1
+                    
+                    if msg_count > WS_MAX_MESSAGES_PER_SEC:
                         await ws.send_bytes(b'\x05\x01')
                         continue
+                    
+                    if cmd == 0:
+                        log_debug(f"[WS-TOKEN] Ignored token packet from {client_uuid[:8]}")
+                        
+                    elif cmd == 1:
+                        if not is_authenticated:
+                            toast_packet = b'\x03\x02' + "Auth Required".encode('utf-8') + b'\x00' + "Please login to animate.".encode('utf-8')
+                            await ws.send_bytes(toast_packet)
+                            continue
 
-                    log_debug(f"[WS-PING-IN] From {client_uuid[:8]} | RAW: {hex_dump(data)}")
-                    uuid_bytes = uuid.UUID(client_uuid).bytes
-                    s2c_packet = data[0:1] + uuid_bytes + data[1:]
+                        if client_uuid not in users_with_avatars:
+                            continue
+                            
+                        if len(data) > MAX_PING_SIZE:
+                            log_debug(f"[WS-PING-LIMIT] {client_uuid[:8]} exceeded size ({len(data)} bytes)")
+                            await ws.send_bytes(b'\x05\x00') 
+                            continue
+                            
+                        if current_time - ping_reset_time > 1.0:
+                            ping_bytes_sec = 0
+                            ping_reset_time = current_time
+                            
+                        ping_bytes_sec += len(data)
+                        if ping_bytes_sec > MAX_PING_BPS:
+                            log_debug(f"[WS-PING-LIMIT] {client_uuid[:8]} exceeded rate limit")
+                            await ws.send_bytes(b'\x05\x01')
+                            continue
+
+                        log_debug(f"[WS-PING-IN] From {client_uuid[:8]} | RAW: {hex_dump(data)}")
+                        uuid_bytes = uuid.UUID(client_uuid).bytes
+                        s2c_packet = data[0:1] + uuid_bytes + data[1:]
+                        
+                        if client_uuid in subscriptions:
+                            for sub_uuid in subscriptions[client_uuid]:
+                                if sub_uuid != client_uuid and sub_uuid in active_connections:
+                                    await active_connections[sub_uuid].send_bytes(s2c_packet)
+                                    log_debug(f"[WS-PING-OUT] To {sub_uuid[:8]} | RAW: {hex_dump(s2c_packet)}")
                     
-                    if client_uuid in subscriptions:
-                        for sub_uuid in subscriptions[client_uuid]:
-                            if sub_uuid != client_uuid and sub_uuid in active_connections:
-                                await active_connections[sub_uuid].send_bytes(s2c_packet)
-                                log_debug(f"[WS-PING-OUT] To {sub_uuid[:8]} | RAW: {hex_dump(s2c_packet)}")
-                
-                elif cmd == 2 and len(data) >= 17:
-                    target_uuid = str(uuid.UUID(bytes=data[1:17]))
-                    if target_uuid not in subscriptions:
-                        subscriptions[target_uuid] = set()
-                    subscriptions[target_uuid].add(client_uuid)
-                    log_debug(f"[WS-SUB] {client_uuid[:8]} -> {target_uuid[:8]}")
+                    elif cmd == 2 and len(data) >= 17:
+                        if client_subs >= WS_MAX_SUBS_PER_CLIENT:
+                            continue
+                        target_uuid = str(uuid.UUID(bytes=data[1:17]))
+                        if target_uuid not in subscriptions:
+                            subscriptions[target_uuid] = set()
+                        if client_uuid not in subscriptions[target_uuid]:
+                            subscriptions[target_uuid].add(client_uuid)
+                            client_subs += 1
+                        log_debug(f"[WS-SUB] {client_uuid[:8]} -> {target_uuid[:8]}")
+                        
+                        uuid_bytes = uuid.UUID(target_uuid).bytes
+                        event_packet = b'\x02' + uuid_bytes
+                        await ws.send_bytes(event_packet)
                     
-                    uuid_bytes = uuid.UUID(target_uuid).bytes
-                    event_packet = b'\x02' + uuid_bytes
-                    await ws.send_bytes(event_packet)
-                
-                elif cmd == 3 and len(data) >= 17:
-                    target_uuid = str(uuid.UUID(bytes=data[1:17]))
-                    if target_uuid in subscriptions and client_uuid in subscriptions[target_uuid]:
-                        subscriptions[target_uuid].remove(client_uuid)
-                        log_debug(f"[WS-UNSUB] {client_uuid[:8]} -/-> {target_uuid[:8]}")
-                
-            elif msg.type == WSMsgType.ERROR:
-                log_info(f"[WS] Error in {client_uuid[:8]}: {ws.exception()}")
+                    elif cmd == 3 and len(data) >= 17:
+                        target_uuid = str(uuid.UUID(bytes=data[1:17]))
+                        if target_uuid in subscriptions and client_uuid in subscriptions[target_uuid]:
+                            subscriptions[target_uuid].remove(client_uuid)
+                            client_subs -= 1
+                            log_debug(f"[WS-UNSUB] {client_uuid[:8]} -/-> {target_uuid[:8]}")
+                    
+                elif msg.type == WSMsgType.ERROR:
+                    log_info(f"[WS] Error in {client_uuid[:8]}: {ws.exception()}")
+        finally:
+            if client_uuid in active_connections:
+                del active_connections[client_uuid]
+            
+            for target in list(subscriptions.keys()):
+                if client_uuid in subscriptions[target]:
+                    subscriptions[target].remove(client_uuid)
+                    if not subscriptions[target]:
+                        del subscriptions[target]
+                        
+            log_info(f"[WS] - Disconnected {client_uuid[:8]}. Online: {len(active_connections)}")
     finally:
-        if client_uuid in active_connections:
-            del active_connections[client_uuid]
-        
-        for target in list(subscriptions.keys()):
-            if client_uuid in subscriptions[target]:
-                subscriptions[target].remove(client_uuid)
-                if not subscriptions[target]:
-                    del subscriptions[target]
-                    
-        log_info(f"[WS] - Disconnected {client_uuid[:8]}. Online: {len(active_connections)}")
+        ip_connections[real_ip] -= 1
+        if ip_connections[real_ip] <= 0:
+            del ip_connections[real_ip]
 
     return ws
 
+async def cleanup_rate_limits(app):
+    while True:
+        await asyncio.sleep(RATE_LIMIT_CLEANUP_INTERVAL)
+        now = time.time()
+        expired = [ip for ip, data in rate_limits.items() if now > data["reset"]]
+        for ip in expired:
+            del rate_limits[ip]
+
+async def start_background_tasks(app):
+    app['cleanup_task'] = asyncio.create_task(cleanup_rate_limits(app))
+
+async def cleanup_background_tasks(app):
+    app['cleanup_task'].cancel()
+    try:
+        await app['cleanup_task']
+    except asyncio.CancelledError:
+        pass
+
 app = web.Application(middlewares=[security_middleware], client_max_size=MAX_AVATAR_SIZE)
+
+app.on_startup.append(start_background_tasks)
+app.on_cleanup.append(cleanup_background_tasks)
 
 app.router.add_get('/api/', handle_api_check)
 app.router.add_get('/api', handle_api_check)
