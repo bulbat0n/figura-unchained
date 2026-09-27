@@ -60,6 +60,7 @@ backend/data/
 
 # Original mod jar
 addon/libs/*
+!addon/libs/.gitkeep
 
 # ========================
 # Operating System files
