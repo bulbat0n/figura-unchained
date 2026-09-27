@@ -59,7 +59,7 @@ backend/avatars/
 backend/data/
 
 # Original mod jar
-addon/libs/
+addon/libs/*
 
 # ========================
 # Operating System files
