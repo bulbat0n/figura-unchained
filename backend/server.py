@@ -40,6 +40,7 @@ try:
 except ValueError:
     config_errors.append("PORT must be an integer.")
 
+HOST = os.environ.get("IP", "0.0.0.0")
 DEBUG_env = os.environ.get("DEBUG").lower()
 if DEBUG_env not in ["true", "false"]:
     config_errors.append(f"DEBUG must be 'true' or 'false', got '{DEBUG_env}'")
@@ -631,8 +632,8 @@ app.router.add_get('/api//ws', websocket_handler)
 
 if __name__ == '__main__':
     try:
-        log_info(f"Starting Server on port {PORT}...")
-        web.run_app(app, port=PORT, access_log=None, print=None)
+        log_info(f"Starting Server on host {HOST} port {PORT}...")
+        web.run_app(app, host=HOST, port=PORT, access_log=None, print=None)
     except OSError as e:
         if e.errno in (98, 10048):
             print(f"\n[FATAL ERROR] Port {PORT} is already in use!")
