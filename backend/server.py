@@ -142,6 +142,11 @@ def get_file_hash_sync(filepath):
             hasher.update(chunk)
     return hasher.hexdigest()
 
+def db_is_registered_sync(client_uuid):
+    cursor = db_conn.cursor()
+    cursor.execute("SELECT 1 FROM users WHERE uuid = ?", (client_uuid,))
+    return cursor.fetchone() is not None
+
 def db_register_sync(client_uuid, client_hash, real_ip):
     cursor = db_conn.cursor()
     cursor.execute("SELECT uuid FROM users WHERE uuid = ?", (client_uuid,))
@@ -461,16 +466,22 @@ async def websocket_handler(request):
         msg_count = 0
         msg_reset_time = time.time()
         client_subs = 0
+        auth_msg = ""
         
         try:
             await ws.send_bytes(b'\x00')
             
             if REQUIRE_AUTH:
                 if not is_authenticated:
-                    toast_packet = b'\x03\x02' + "Auth Required".encode('utf-8') + b'\x00' + "Type /figura-unchained register <password>".encode('utf-8')
+                    is_registered = await asyncio.to_thread(db_is_registered_sync, client_uuid)
+                    if is_registered:
+                        auth_msg = "Type /figura-unchained login <password>"
+                    else:
+                        auth_msg = "Type /figura-unchained register <password>"
+                    toast_packet = b'\x03\x02' + "Auth Required".encode('utf-8') + b'\x00' + auth_msg.encode('utf-8')
                     await ws.send_bytes(toast_packet)
                 else:
-                    toast_packet = b'\x03\x00' + "Authenticated".encode('utf-8') + b'\x00' + "Connected securely.".encode('utf-8')
+                    toast_packet = b'\x03\x00' + "Authenticated".encode('utf-8') + b'\x00' + "Connected successfully.".encode('utf-8')
                     await ws.send_bytes(toast_packet)
             
             async for msg in ws:
@@ -493,7 +504,7 @@ async def websocket_handler(request):
                         
                     elif cmd == 1:
                         if not is_authenticated:
-                            toast_packet = b'\x03\x02' + "Auth Required".encode('utf-8') + b'\x00' + "Please login to animate.".encode('utf-8')
+                            toast_packet = b'\x03\x02' + "Auth Required".encode('utf-8') + b'\x00' + auth_msg.encode('utf-8')
                             await ws.send_bytes(toast_packet)
                             continue
 
