@@ -266,7 +266,12 @@ async def handle_register(request):
     
     token = jwt.encode({"uuid": client_uuid, "exp": datetime.now(timezone.utc) + timedelta(days=30)}, JWT_SECRET, algorithm="HS256")
     log_info(f"[AUTH] Registered UUID {client_uuid[:8]} from IP {request['real_ip']}")
-    return web.json_response({"status": "success", "token": token})
+    return web.json_response({
+        "status": "success", 
+        "token": token, 
+        "title": "Malicious or NSFW content is prohibited",
+        "message": "Author IPs are logged by backend's owner"
+    })
 
 async def handle_login(request):
     body = await request.json()

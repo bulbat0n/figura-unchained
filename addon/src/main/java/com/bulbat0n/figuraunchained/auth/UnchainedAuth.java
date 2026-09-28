@@ -90,7 +90,16 @@ public class UnchainedAuth {
                     TOKEN_FILE = new File(dir, uuid + ".txt");
                     Files.writeString(TOKEN_FILE.toPath(), token);
                     
-                    FiguraToast.sendToast("Auth Successful", "Logged in as " + username, FiguraToast.ToastType.DEFAULT);
+                    String toastTitle = "Auth";
+                    String toastDesc = "Success";
+                    if (body.contains("\"title\"")) {
+                        try { toastTitle = body.split("\"title\"\\s*:\\s*\"")[1].split("\"")[0]; } catch (Exception ignore) {}
+                    }
+                    if (body.contains("\"message\"")) {
+                        try { toastDesc = body.split("\"message\"\\s*:\\s*\"")[1].split("\"")[0]; } catch (Exception ignore) {}
+                    }
+                    
+                    FiguraToast.sendToast(toastTitle, toastDesc, action.equals("register") ? FiguraToast.ToastType.WARNING : FiguraToast.ToastType.DEFAULT);
                     
                     org.figuramc.figura.backend2.NetworkStuff.reAuth();
                 } else {

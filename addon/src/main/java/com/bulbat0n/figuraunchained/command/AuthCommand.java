@@ -7,6 +7,7 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.command.CommandRegistryAccess;
 import com.bulbat0n.figuraunchained.auth.UnchainedAuth;
+import org.figuramc.figura.gui.FiguraToast;
 
 public class AuthCommand implements ClientCommandRegistrationCallback {
 
@@ -17,6 +18,10 @@ public class AuthCommand implements ClientCommandRegistrationCallback {
                 .then(ClientCommandManager.argument("password", StringArgumentType.string())
                     .executes(context -> {
                         String password = StringArgumentType.getString(context, "password");
+                        if (password.length() < 6) {
+                            FiguraToast.sendToast("Password must be at least 6 characters.", "", FiguraToast.ToastType.ERROR);
+                            return 0;
+                        }
                         UnchainedAuth.performAuth("register", password);
                         return 1;
                     })
