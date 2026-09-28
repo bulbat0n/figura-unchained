@@ -55,9 +55,34 @@ public class UnchainedAuth {
             return "";
         }
     }
+    
+    public static boolean checkVersion() {
+        try {
+            String baseUrl = HttpAPIAccessor.invokeGetUri("").toString().replace("/api", "");
+            if (baseUrl.endsWith("/")) {
+                baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+            }
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(baseUrl + "/api/version"))
+                    .GET()
+                    .build();
+            HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                String body = response.body().replaceAll("\\s+", "");
+                if (body.contains("\"unchained_api\":1")) {
+                    return true;
+                }
+            }
+        } catch (Exception e) {}
+        return false;
+    }
 
     public static void performAuth(String action, String password) {
         new Thread(() -> {
+            if (!checkVersion()) {
+                FiguraToast.sendToast("Version Mismatch", "Incompatible Unchained Backend.", FiguraToast.ToastType.ERROR);
+                return;
+            }
             try {
                 String uuid = MinecraftClient.getInstance().getSession().getUuidOrNull().toString();
                 String username = MinecraftClient.getInstance().getSession().getUsername();

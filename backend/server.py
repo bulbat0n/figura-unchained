@@ -239,7 +239,7 @@ async def handle_api_check(request):
     return web.json_response({"status": "ok"})
 
 async def handle_version(request):
-    return web.json_response({"release": "0.1.5", "prerelease": "0.1.5"})
+    return web.json_response({"release": "0.1.5", "prerelease": "0.1.5", "unchained_api": 1})
 
 async def handle_limits(request):
     return web.json_response({"rate": {"upload": MAX_PING_BPS, "download": MAX_PING_BPS}, "limits": {"maxAvatarSize": MAX_AVATAR_SIZE}})

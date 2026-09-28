@@ -37,12 +37,21 @@ public abstract class NetworkStuffMixin {
     private static void unchainedAuth(CallbackInfo ci) {
         authCheck = 6000;
         com.bulbat0n.figuraunchained.auth.UnchainedAuth.init();
-        String tokenPayload = MinecraftClient.getInstance().getSession().getUuidOrNull().toString();
-        if (com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT != null && !com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT.isEmpty()) {
-            tokenPayload += ":" + com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT;
-        }
-        authSuccess(tokenPayload);
-        fetchMOTD();
+        
+        new Thread(() -> {
+            if (!com.bulbat0n.figuraunchained.auth.UnchainedAuth.checkVersion()) {
+                org.figuramc.figura.gui.FiguraToast.sendToast("Version Mismatch", "Incompatible Unchained Backend.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+                backendStatus = 1;
+                return;
+            }
+            String tokenPayload = MinecraftClient.getInstance().getSession().getUuidOrNull().toString();
+            if (com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT != null && !com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT.isEmpty()) {
+                tokenPayload += ":" + com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT;
+            }
+            authSuccess(tokenPayload);
+            fetchMOTD();
+        }).start();
+        
         ci.cancel(); 
     }
 
@@ -50,12 +59,21 @@ public abstract class NetworkStuffMixin {
     private static void unchainedReAuth(CallbackInfo ci) {
         authCheck = 6000;
         com.bulbat0n.figuraunchained.auth.UnchainedAuth.init();
-        String tokenPayload = MinecraftClient.getInstance().getSession().getUuidOrNull().toString();
-        if (com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT != null && !com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT.isEmpty()) {
-            tokenPayload += ":" + com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT;
-        }
-        authSuccess(tokenPayload);
-        fetchMOTD();
+        
+        new Thread(() -> {
+            if (!com.bulbat0n.figuraunchained.auth.UnchainedAuth.checkVersion()) {
+                org.figuramc.figura.gui.FiguraToast.sendToast("Version Mismatch", "Incompatible Unchained Backend.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+                backendStatus = 1;
+                return;
+            }
+            String tokenPayload = MinecraftClient.getInstance().getSession().getUuidOrNull().toString();
+            if (com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT != null && !com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT.isEmpty()) {
+                tokenPayload += ":" + com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT;
+            }
+            authSuccess(tokenPayload);
+            fetchMOTD();
+        }).start();
+        
         ci.cancel();
     }
 
