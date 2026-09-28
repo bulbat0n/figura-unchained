@@ -70,6 +70,10 @@ except ValueError:
 
 AVATAR_DIR = os.environ.get("AVATAR_DIR")
 
+CUSTOM_REAL_IP_HEADER = os.environ.get("CUSTOM_REAL_IP_HEADER")
+if CUSTOM_REAL_IP_HEADER:
+    CUSTOM_REAL_IP_HEADER = CUSTOM_REAL_IP_HEADER.strip()
+
 trusted_networks = []
 for net in os.environ.get("TRUSTED_PROXIES").split(","):
     net = net.strip()
@@ -188,6 +192,10 @@ def get_real_ip(request):
     is_trusted = any(client_ip in net for net in trusted_networks)
     
     if is_trusted:
+        if CUSTOM_REAL_IP_HEADER:
+            custom_ip = request.headers.get(CUSTOM_REAL_IP_HEADER)
+            if custom_ip:
+                return custom_ip.split(',')[0].strip()
         xff = request.headers.get("X-Forwarded-For")
         if xff:
             return xff.split(',')[0].strip()

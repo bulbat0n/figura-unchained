@@ -20,9 +20,16 @@ public class UnchainedAuth {
 
     public static void init() {
         try {
-            TOKEN_FILE = new File(MinecraftClient.getInstance().runDirectory, "config/figura_unchained_token.txt");
+            String uuid = MinecraftClient.getInstance().getSession().getUuidOrNull().toString();
+            File dir = new File(MinecraftClient.getInstance().runDirectory, "config/figura-unchained");
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+            TOKEN_FILE = new File(dir, uuid + ".txt");
             if (TOKEN_FILE.exists()) {
                 JWT = Files.readString(TOKEN_FILE.toPath()).trim();
+            } else {
+                JWT = "";
             }
         } catch (Exception e) {}
     }
@@ -75,9 +82,14 @@ public class UnchainedAuth {
                 if (response.statusCode() == 200) {
                     String token = body.split("\"token\"\\s*:\\s*\"")[1].split("\"")[0];
                     JWT = token;
-                    if (TOKEN_FILE != null) {
-                        Files.writeString(TOKEN_FILE.toPath(), token);
+                    
+                    File dir = new File(MinecraftClient.getInstance().runDirectory, "config/figura-unchained");
+                    if (!dir.exists()) {
+                        dir.mkdirs();
                     }
+                    TOKEN_FILE = new File(dir, uuid + ".txt");
+                    Files.writeString(TOKEN_FILE.toPath(), token);
+                    
                     FiguraToast.sendToast("Auth Successful", "Logged in as " + username, FiguraToast.ToastType.DEFAULT);
                     
                     org.figuramc.figura.backend2.NetworkStuff.reAuth();
