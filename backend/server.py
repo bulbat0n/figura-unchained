@@ -15,11 +15,6 @@ from datetime import datetime, timedelta, timezone
 from aiohttp import web, WSMsgType
 from dotenv import load_dotenv
 
-if not os.path.exists(".env"):
-    print("[FATAL ERROR] The .env file is missing!")
-    print("Please create it or rename '.env.example' to '.env' before starting the server.")
-    sys.exit(1)
-
 load_dotenv()
 
 REQUIRED_VARS = [
