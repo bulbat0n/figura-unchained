@@ -11,6 +11,8 @@ import bcrypt
 import jwt
 import ipaddress
 import asyncio
+import logging
+from logging.handlers import RotatingFileHandler
 from datetime import datetime, timedelta, timezone
 from aiohttp import web, WSMsgType
 from dotenv import load_dotenv
@@ -85,10 +87,19 @@ if config_errors:
         print(f"  - {err}")
     sys.exit(1)
 
-if not os.path.exists(AVATAR_DIR):
-    os.makedirs(AVATAR_DIR)
-
 os.makedirs("data", exist_ok=True)
+os.makedirs(AVATAR_DIR, exist_ok=True)
+
+log_level = logging.DEBUG if DEBUG else logging.INFO
+log_formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setFormatter(log_formatter)
+
+file_handler = RotatingFileHandler('data/server.log', maxBytes=5*1024*1024, backupCount=3)
+file_handler.setFormatter(log_formatter)
+
+logging.basicConfig(level=log_level, handlers=[stdout_handler, file_handler])
 
 db_conn = sqlite3.connect('data/users.db', check_same_thread=False)
 db_conn.execute('CREATE TABLE IF NOT EXISTS users (uuid TEXT PRIMARY KEY, password_hash TEXT, last_ip TEXT)')
@@ -119,13 +130,11 @@ def is_valid_uuid(val):
     return bool(val and UUID_REGEX.match(val))
 
 def log_info(msg):
-    now = datetime.now().strftime('%H:%M:%S.%f')[:-3]
-    print(f"[{now}] {msg}")
+    logging.info(msg)
 
 def log_debug(msg):
     if DEBUG:
-        now = datetime.now().strftime('%H:%M:%S.%f')[:-3]
-        print(f"[{now}] [DEBUG] {msg}")
+        logging.debug(msg)
 
 def hex_dump(data):
     return data.hex().upper()
@@ -623,7 +632,7 @@ app.router.add_get('/api//ws', websocket_handler)
 if __name__ == '__main__':
     try:
         log_info(f"Starting Server on port {PORT}...")
-        web.run_app(app, port=PORT, print=None)
+        web.run_app(app, port=PORT, access_log=None, print=None)
     except OSError as e:
         if e.errno in (98, 10048):
             print(f"\n[FATAL ERROR] Port {PORT} is already in use!")
@@ -632,5 +641,6 @@ if __name__ == '__main__':
             print("2. OR open .env, change PORT to a different number")
             print("   and update the 'Server IP' in Figura mod settings to localhost:new_port")
             print("\nExiting...")
+            sys.exit(1)
         else:
             raise
