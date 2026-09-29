@@ -13,6 +13,7 @@ import ipaddress
 import asyncio
 import logging
 import json
+import glob
 from logging.handlers import RotatingFileHandler
 from datetime import datetime, timedelta, timezone
 from aiohttp import web, WSMsgType
@@ -103,19 +104,23 @@ file_handler.setFormatter(log_formatter)
 
 logging.basicConfig(level=log_level, handlers=[stdout_handler, file_handler])
 
+def save_secure_file(path, content):
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    mode = 0o600
+    with open(os.open(path, flags, mode), "w") as f:
+        f.write(content)
+
 db_conn = sqlite3.connect('data/users.db', check_same_thread=False)
 db_conn.execute('CREATE TABLE IF NOT EXISTS users (uuid TEXT PRIMARY KEY, password_hash TEXT, last_ip TEXT)')
 db_conn.commit()
 
 ADMIN_SESSION_TOKEN = secrets.token_hex(32)
-with open("data/.admin_session", "w") as f:
-    f.write(ADMIN_SESSION_TOKEN)
+save_secure_file("data/.admin_session", ADMIN_SESSION_TOKEN)
 
 JWT_SECRET_FILE = "data/.jwt_secret"
 if not os.path.exists(JWT_SECRET_FILE):
     JWT_SECRET = secrets.token_hex(64)
-    with open(JWT_SECRET_FILE, "w") as f:
-        f.write(JWT_SECRET)
+    save_secure_file(JWT_SECRET_FILE, JWT_SECRET)
 else:
     with open(JWT_SECRET_FILE, "r") as f:
         JWT_SECRET = f.read().strip()
@@ -556,49 +561,56 @@ async def cleanup_rate_limits(app):
         for ip in expired:
             del rate_limits[ip]
 
+def process_admin_commands():
+    commands = []
+    for file_path in glob.glob("data/.admin_command_*.json"):
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            commands.append(data)
+        except Exception:
+            pass
+        finally:
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+    return commands
+
 async def admin_command_poller(app):
-    command_file = "data/.admin_command"
     while True:
         await asyncio.sleep(1)
-        if os.path.exists(command_file):
-            try:
-                with open(command_file, "r") as f:
-                    data = json.load(f)
-                os.remove(command_file)
+        commands = await asyncio.to_thread(process_admin_commands)
+        
+        for data in commands:
+            if data.get("token") != ADMIN_SESSION_TOKEN:
+                logging.warning("[ADMIN] Invalid session token in command file.")
+                continue
                 
-                if data.get("token") != ADMIN_SESSION_TOKEN:
-                    logging.warning("[ADMIN] Invalid session token in command file.")
-                    continue
+            b_type = data.get("type")
+            packet = None
+            
+            if b_type == "chat":
+                msg = data.get("message", "")
+                if msg:
+                    packet = b'\x04' + msg.encode('utf-8')
                     
-                b_type = data.get("type")
-                packet = None
-                
-                if b_type == "chat":
-                    msg = data.get("message", "")
-                    if msg:
-                        packet = b'\x04' + msg.encode('utf-8')
-                        
-                elif b_type == "toast":
-                    t_type = int(data.get("toast_type", 0))
-                    title = data.get("title", "")
-                    desc = data.get("desc", "")
-                    if title or desc:
-                        packet = b'\x03' + bytes([t_type]) + title.encode('utf-8') + b'\0' + desc.encode('utf-8')
-                
-                if packet:
-                    count = 0
-                    for ws in list(active_connections.values()):
+            elif b_type == "toast":
+                t_type = int(data.get("toast_type", 0))
+                title = data.get("title", "")
+                desc = data.get("desc", "")
+                if title or desc:
+                    packet = b'\x03' + bytes([t_type]) + title.encode('utf-8') + b'\0' + desc.encode('utf-8')
+            
+            if packet:
+                count = 0
+                for ws in list(active_connections.values()):
+                    try:
                         await ws.send_bytes(packet)
                         count += 1
-                    logging.info(f"[ADMIN] Broadcasted {b_type} to {count} users.")
-                    
-            except Exception as e:
-                logging.error(f"[ADMIN] Error processing command file: {e}")
-                if os.path.exists(command_file):
-                    try:
-                        os.remove(command_file)
-                    except:
-                        pass
+                    except Exception as e:
+                        logging.debug(f"[ADMIN] Failed to send to a client: {e}")
+                logging.info(f"[ADMIN] Broadcasted {b_type} to {count} users.")
 
 async def start_background_tasks(app):
     app['cleanup_task'] = asyncio.create_task(cleanup_rate_limits(app))

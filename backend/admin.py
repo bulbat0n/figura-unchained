@@ -1,6 +1,7 @@
 import sys
 import json
 import os
+import uuid
 
 def main():
     if len(sys.argv) < 2:
@@ -61,11 +62,15 @@ def main():
     with open(token_file, "r") as f:
         data["token"] = f.read().strip()
         
-    with open("data/.admin_command.tmp", "w") as f:
+    unique_id = uuid.uuid4().hex
+    tmp_file = f"data/.admin_command_{unique_id}.tmp"
+    final_file = f"data/.admin_command_{unique_id}.json"
+        
+    with open(tmp_file, "w") as f:
         json.dump(data, f)
         
-    os.replace("data/.admin_command.tmp", "data/.admin_command")
-    print(f"Command '{cmd_type}' sent to the server!")
+    os.replace(tmp_file, final_file)
+    print(f"Command '{cmd_type}' sent to the server queue!")
 
 if __name__ == "__main__":
     main()
