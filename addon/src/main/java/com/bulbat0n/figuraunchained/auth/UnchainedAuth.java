@@ -56,7 +56,7 @@ public class UnchainedAuth {
         }
     }
     
-    public static boolean checkVersion() {
+    public static int checkVersion() {
         try {
             String baseUrl = HttpAPIAccessor.invokeGetUri("").toString().replace("/api", "");
             if (baseUrl.endsWith("/")) {
@@ -70,16 +70,21 @@ public class UnchainedAuth {
             if (response.statusCode() == 200) {
                 String body = response.body().replaceAll("\\s+", "");
                 if (body.contains("\"unchained_api\":1")) {
-                    return true;
+                    return 2;
                 }
+                return 1;
             }
+            return 0;
         } catch (Exception e) {}
-        return false;
+        return 0;
     }
-
     public static void performAuth(String action, String password) {
         new Thread(() -> {
-            if (!checkVersion()) {
+            int vStatus = checkVersion();
+            if (vStatus == 0) {
+                FiguraToast.sendToast("Connection Error", "Backend is offline or unreachable.", FiguraToast.ToastType.ERROR);
+                return;
+            } else if (vStatus == 1) {
                 FiguraToast.sendToast("Version Mismatch", "Incompatible Unchained Backend.", FiguraToast.ToastType.ERROR);
                 return;
             }

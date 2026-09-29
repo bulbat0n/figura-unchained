@@ -39,7 +39,12 @@ public abstract class NetworkStuffMixin {
         com.bulbat0n.figuraunchained.auth.UnchainedAuth.init();
         
         new Thread(() -> {
-            if (!com.bulbat0n.figuraunchained.auth.UnchainedAuth.checkVersion()) {
+            int vStatus = com.bulbat0n.figuraunchained.auth.UnchainedAuth.checkVersion();
+            if (vStatus == 0) {
+                org.figuramc.figura.gui.FiguraToast.sendToast("Connection Error", "Backend is offline or unreachable.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+                backendStatus = 1;
+                return;
+            } else if (vStatus == 1) {
                 org.figuramc.figura.gui.FiguraToast.sendToast("Version Mismatch", "Incompatible Unchained Backend.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
                 backendStatus = 1;
                 return;
@@ -61,7 +66,12 @@ public abstract class NetworkStuffMixin {
         com.bulbat0n.figuraunchained.auth.UnchainedAuth.init();
         
         new Thread(() -> {
-            if (!com.bulbat0n.figuraunchained.auth.UnchainedAuth.checkVersion()) {
+            int vStatus = com.bulbat0n.figuraunchained.auth.UnchainedAuth.checkVersion();
+            if (vStatus == 0) {
+                org.figuramc.figura.gui.FiguraToast.sendToast("Connection Error", "Backend is offline or unreachable.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+                backendStatus = 1;
+                return;
+            } else if (vStatus == 1) {
                 org.figuramc.figura.gui.FiguraToast.sendToast("Version Mismatch", "Incompatible Unchained Backend.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
                 backendStatus = 1;
                 return;
