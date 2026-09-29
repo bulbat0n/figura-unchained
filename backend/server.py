@@ -12,6 +12,7 @@ import jwt
 import ipaddress
 import asyncio
 import logging
+import json
 from logging.handlers import RotatingFileHandler
 from datetime import datetime, timedelta, timezone
 from aiohttp import web, WSMsgType
@@ -401,47 +402,6 @@ async def delete_avatar(request):
                         
     return web.json_response({"status": "deleted"})
 
-async def handle_admin_broadcast(request):
-    real_ip = request['real_ip']
-    
-    try:
-        ip_obj = ipaddress.ip_address(real_ip)        
-        is_local = ip_obj.is_loopback
-        is_docker = ip_obj in ipaddress.ip_network('172.16.0.0/12')
-        
-        if not (is_local or is_docker):
-            return web.json_response({"error": "Network block"}, status=403)
-            
-    except ValueError:
-        return web.json_response({"error": "Invalid IP"}, status=400)
-        
-    auth_header = request.headers.get("Authorization")
-    if auth_header != f"Bearer {ADMIN_SESSION_TOKEN}":
-        return web.json_response({"error": "Unauthorized"}, status=401)
-        
-    body = await request.json()
-    b_type = body.get("type")
-    
-    packet = None
-    if b_type == "chat":
-        msg = body.get("message", "")
-        packet = b'\x04' + msg.encode('utf-8')
-    elif b_type == "toast":
-        t_type = int(body.get("toast_type", 0))
-        title = body.get("title", "")
-        desc = body.get("desc", "")
-        packet = b'\x03' + bytes([t_type]) + title.encode('utf-8') + b'\0' + desc.encode('utf-8')
-    else:
-        return web.json_response({"error": "Invalid type."}, status=400)
-        
-    count = 0
-    for ws in active_connections.values():
-        await ws.send_bytes(packet)
-        count += 1
-        
-    log_info(f"[ADMIN] Broadcasted {b_type} to {count} users.")
-    return web.json_response({"status": "success", "broadcasted_to": count})
-
 async def websocket_handler(request):
     real_ip = request['real_ip']
     if ip_connections.get(real_ip, 0) >= WS_MAX_CONNECTIONS_PER_IP:
@@ -596,13 +556,63 @@ async def cleanup_rate_limits(app):
         for ip in expired:
             del rate_limits[ip]
 
+async def admin_command_poller(app):
+    command_file = "data/.admin_command"
+    while True:
+        await asyncio.sleep(1)
+        if os.path.exists(command_file):
+            try:
+                with open(command_file, "r") as f:
+                    data = json.load(f)
+                os.remove(command_file)
+                
+                if data.get("token") != ADMIN_SESSION_TOKEN:
+                    logging.warning("[ADMIN] Invalid session token in command file.")
+                    continue
+                    
+                b_type = data.get("type")
+                packet = None
+                
+                if b_type == "chat":
+                    msg = data.get("message", "")
+                    if msg:
+                        packet = b'\x04' + msg.encode('utf-8')
+                        
+                elif b_type == "toast":
+                    t_type = int(data.get("toast_type", 0))
+                    title = data.get("title", "")
+                    desc = data.get("desc", "")
+                    if title or desc:
+                        packet = b'\x03' + bytes([t_type]) + title.encode('utf-8') + b'\0' + desc.encode('utf-8')
+                
+                if packet:
+                    count = 0
+                    for ws in list(active_connections.values()):
+                        await ws.send_bytes(packet)
+                        count += 1
+                    logging.info(f"[ADMIN] Broadcasted {b_type} to {count} users.")
+                    
+            except Exception as e:
+                logging.error(f"[ADMIN] Error processing command file: {e}")
+                if os.path.exists(command_file):
+                    try:
+                        os.remove(command_file)
+                    except:
+                        pass
+
 async def start_background_tasks(app):
     app['cleanup_task'] = asyncio.create_task(cleanup_rate_limits(app))
+    app['admin_poller_task'] = asyncio.create_task(admin_command_poller(app))
 
 async def cleanup_background_tasks(app):
     app['cleanup_task'].cancel()
+    app['admin_poller_task'].cancel()
     try:
         await app['cleanup_task']
+    except asyncio.CancelledError:
+        pass
+    try:
+        await app['admin_poller_task']
     except asyncio.CancelledError:
         pass
 
@@ -625,7 +635,6 @@ app.router.add_get(r'/api/{uuid:[0-9a-fA-F\-]{36}}/avatar', download_avatar)
 app.router.add_put('/api/avatar', upload_avatar)
 app.router.add_post('/api/equip', equip_avatar)
 app.router.add_delete('/api/avatar', delete_avatar)
-app.router.add_post('/api/admin/broadcast', handle_admin_broadcast)
 app.router.add_get('/ws', websocket_handler)
 app.router.add_get('/api/ws', websocket_handler)
 app.router.add_get('/api//ws', websocket_handler)
