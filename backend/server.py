@@ -306,15 +306,15 @@ async def handle_user_profile(request):
         equipped.append({"owner": target_uuid, "id": "avatar", "hash": hash_cache[target_uuid]})
         log_debug(f"[PROFILER] Serving profile {target_uuid[:8]}")
         
-    return web.json_response({"equipped": equipped, "equippedBadges": {"pride": [], "special": []}})
+    return web.json_response({"equipped": equipped, "equippedBadges": {"pride": [], "special": []}}, headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
 
 async def download_avatar(request):
     target_uuid = os.path.basename(request.match_info['uuid'])
     file_path = os.path.join(AVATAR_DIR, f"{target_uuid}.nbt")
     if os.path.exists(file_path):
         log_debug(f"[DOWNLOAD] Serving file: {target_uuid}.nbt")
-        return web.FileResponse(file_path)
-    return web.json_response({"error": "Not found"}, status=404)
+        return web.FileResponse(file_path, headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
+    return web.json_response({"error": "Not found"}, status=404, headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
 
 async def upload_avatar(request):
     raw_token = request.headers.get('token', '')
