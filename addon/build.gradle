@@ -2,6 +2,9 @@ plugins {
     id 'fabric-loom' version '1.17-SNAPSHOT'
 }
 
+version = project.mod_version
+group = "com.bulbat0n.figuraunchained"
+
 base {
     archivesName = "figura-unchained-${project.mod_version}+mc${project.minecraft_version}+fabric+figura${project.figura_version}"
 } 
