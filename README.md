@@ -1,3 +1,5 @@
+## This is the addon repository. The backend repository is [here](https://github.com/bulbat0n/figura-unchained-backend)
+
 ## 🚀 Getting Started
 
 To use Figura Unchained, you need to connect to a compatible custom backend. You can use the official public server provided for the community:
