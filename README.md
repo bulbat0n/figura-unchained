@@ -1,135 +1,72 @@
-# Figura Unchained
+## 🚀 Getting Started
 
-An open-source synchronization backend and companion Fabric addon for self-hosted Figura deployments.
+To use Figura Unchained, you need to connect to a compatible custom backend. You can use the official public server provided for the community:
 
-The project is designed for self-hosted environments and does not rely on external paid services or subscriptions.🫣️
+**Public Server IP:** `figura-unchained.alwaysdata.net`
 
-The project provides an alternative infrastructure for avatar synchronization in private communities, LAN networks, development environments, and experimental server setups.
-
----
-
-## ✨ Features
-
-* Real-time avatar synchronization using WebSockets
-* Self-hosted backend deployment
-* Asynchronous architecture built for multiple concurrent clients
-* Support for custom avatar storage and distribution
-* Lightweight Fabric addon integration
+**Installation & Cloud Connect**
+1. Download this addon([Modrinth](https://modrinth.com/mod/figura-unchained))
+2. Install a compatible version of the original [Figura mod](https://modrinth.com/mod/figura) (or compile from the [Official GitHub](https://github.com/FiguraMC/Figura)).
+3. Launch Minecraft and join any world or server.
+4. Open the Figura mod settings.
+5. In the mod settings, set the Figura Cloud IP address to: `figura-unchained.alwaysdata.net` (or set up your own backend).
+6. Use the in-game commands to authenticate if needed.
 
 ---
 
-## 🏗️ Architecture
+## 📦 Requirements & Dependencies
 
-The project consists of two components:
-
-### Addon (`/addon`)
-
-A Fabric mod responsible for client-side integration and communication with the backend service.
-
-### Backend (`/backend`)
-
-A Python-based server using `aiohttp` for avatar distribution, synchronization, and WebSocket communication.
+This mod is an addon and requires the following to work:
+* **Minecraft:** 1.21.10
+* **Fabric Loader:** >=0.19.3
+* **Java:** 21
+* **Compatible Figura:** [GitHub](https://github.com/FiguraMC/Figura)/[Modrinth](https://modrinth.com/mod/figura)
 
 ---
 
-## 📦 Dependencies
+## ⚙️ Features & Usage
 
-This project requires the official Figura mod to function.
+**Custom Authentication**
+This mod features a custom, independent authentication system designed specifically for custom backend servers, completely separate from the official Figura ecosystem. 
 
-You can download the required version here:
-
-- Official repository: https://github.com/FiguraMC/Figura/tree/1.21.10
-
----
-
-## 🚀 Installation
-
-### Client Setup
-
-1. Install the required version of Figura.
-2. Download the latest release of Figura Unchained.
-3. Place the addon `.jar` file into your `mods` directory.
-4. Connect to your backend server in mod settings(BACKEND_IP:PORT)
-
-### Backend Setup
-
-#### Clone the repository
-
-```bash
-git clone https://github.com/bulbat0n/figura-unchained.git
-cd figura-unchained/backend
-```
-
-#### Create a virtual environment
-
-```bash
-python3 -m venv venv
-```
-
-#### Activate the environment
-
-**Linux / macOS**
-
-```bash
-source venv/bin/activate
-```
-
-**Windows**
-
-```powershell
-venv\Scripts\activate
-```
-
-#### Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-#### Create and configure .env
-
-```bash
-cp .env.example .env
-```
-
-```env
-PORT=YOUR_PORT(required)
-DEBUG=true/false(false by default)
-AVATAR_DIR=your_avatar_dir(avatars by default)
-```
-
-#### Start the server
-
-```bash
-python3 server.py
-```
+**In-Game Commands**
+Once connected to a backend, use these commands in the Minecraft chat to manage your session:
+* `/figura-unchained register <password>` — Register your account on the current backend.
+* `/figura-unchained login <password>` — Log in to your existing account.
 
 ---
 
-## 🤝 Contributing
+## 🛡️ Security & Privacy
 
-Contributions are welcome.
+> **Security Note:** This mod uses an independent authentication system for custom servers. It **DOES NOT** use your Minecraft/Microsoft password. Please use a unique password. Your key is securely hashed locally using PBKDF2 before being sent to the server.
 
-1. Fork the repository.
-2. Create a feature branch.
-3. Commit your changes.
-4. Open a pull request.
-
----
-
-## ⚠️ Known Issues
-
-The following issues are currently known and will be addressed in future updates:
-
-- No verification system
+**Privacy & Transparency**
+* The addon **does not** collect any personal telemetry or data from your game.
+* The only information transmitted is your connection IP address, which is standard for any web server. This IP is only visible to the owner of the backend you connect to.
+* You choose which servers to trust. The creator of this addon assumes no liability for the actions, data retention, or security of third-party backends.
 
 ---
 
-## ⚠️ Disclaimer
+## ⚠️ Rules & Moderation (Public Server)
 
-This project is an independent open-source development effort.
+If you are using the public `figura-unchained.alwaysdata.net` server:
+Uploading malicious, illegal, or NSFW content is **strictly prohibited**. The IP addresses of violators are securely logged by the backend owner and may be handed over to the respective Internet Service Provider (ISP) in case of severe abuse. 
 
-It is not affiliated with, endorsed by, or associated with the Figura project or its contributors.
+---
 
-Users are responsible for complying with all applicable licenses, terms of service, and local regulations when using this software.
+## 🖥️ Host Your Own Server
 
+Want total control? You don't have to use the public server. You can host your own Figura Unchained backend for free for your friends or a private SMP. 
+
+**[Get the Backend source code on GitHub](https://github.com/bulbat0n/figura-unchained-backend)**
+
+---
+
+## ❗ Disclaimer
+
+**This mod is NOT an official product of the Figura team and is NOT supported by them.** 
+Figura Unchained is a third-party modification. Please do not bother the official Figura developers with issues, bugs, or questions related to this custom backend addon.
+
+Official Figura resources:
+[GitHub](https://github.com/FiguraMC/Figura)
+[Modrinth](https://modrinth.com/mod/figura)
