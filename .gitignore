@@ -4,15 +4,13 @@
 .gradle/
 build/
 bin/
-addon/.gradle/
-addon/build/
 
 # ========================
 # Java and IDE artifacts
 # ========================
 *.class
 *.jar
-!addon/gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.jar
 
 .idea/
 *.iml
@@ -25,42 +23,22 @@ addon/build/
 .vscode/
 
 # ========================
-# Python Environment
-# ========================
-venv/
-backend/venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-
-# ========================
 # Fabric Loom & Minecraft
 # ========================
 .loom-cache/
-addon/loom-cache/
-addon/run/
+loom-cache/
 run/
-addon/devlibs/
-addon/generated/
-addon/tmp/
-addon/processIncludeJars/
-addon/reports/
+devlibs/
+generated/
+tmp/
+processIncludeJars/
+reports/
 
 # ========================
-# Runtime and Local Files
-# ========================
-.env
-backend/.env
-backend/avatars/
-*.log
-.admin_session
-backend/data/
-
 # Original mod jar
-addon/libs/*
-!addon/libs/.gitkeep
+# ========================
+libs/*
+!libs/.gitkeep
 
 # ========================
 # Operating System files
@@ -69,7 +47,7 @@ addon/libs/*
 Thumbs.db
 
 # ========================
-# Minecraft Runtime & Mixins (if testing via ./gradlew runClient)
+# Minecraft Runtime & Mixins
 # ========================
 crash-reports/
 logs/
