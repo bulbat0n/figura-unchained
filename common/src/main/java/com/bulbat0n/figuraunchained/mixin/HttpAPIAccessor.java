@@ -7,7 +7,7 @@ import java.net.URI;
 
 @Mixin(HttpAPI.class)
 public interface HttpAPIAccessor {
-    @Invoker("getUri")
+    @Invoker(value = "getUri", remap = false)
     static URI invokeGetUri(String path) {
         throw new UnsupportedOperationException();
     }

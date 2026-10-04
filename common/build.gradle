@@ -1,0 +1,9 @@
+architectury {
+    common("fabric", "neoforge")
+}
+
+dependencies {
+    modImplementation "net.fabricmc:fabric-loader:${project.fabric_loader_version}"
+    compileOnly files("../libs/figura-${project.figura_version}+${project.minecraft_version}-neoforge-mc.jar")
+    implementation "com.neovisionaries:nv-websocket-client:2.14"
+}

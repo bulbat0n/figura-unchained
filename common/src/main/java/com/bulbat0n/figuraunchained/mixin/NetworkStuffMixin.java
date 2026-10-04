@@ -8,7 +8,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.figuramc.figura.backend2.NetworkStuff;
 import org.figuramc.figura.FiguraMod;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 import com.neovisionaries.ws.client.WebSocket;
 import com.neovisionaries.ws.client.WebSocketFactory;
@@ -22,18 +22,18 @@ import java.util.UUID;
 @Mixin(NetworkStuff.class)
 public abstract class NetworkStuffMixin {
 
-    @Shadow private static int authCheck;
-    @Shadow protected static void authSuccess(String token) {}
-    @Shadow private static void fetchMOTD() {}
-    @Shadow protected static WebSocket ws;
-    @Shadow public static int backendStatus;
+    @Shadow(remap = false) private static int authCheck;
+    @Shadow(remap = false) protected static void authSuccess(String token) {}
+    @Shadow(remap = false) private static void fetchMOTD() {}
+    @Shadow(remap = false) protected static WebSocket ws;
+    @Shadow(remap = false) public static int backendStatus;
 
-    @Inject(method = "checkUUID", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "checkUUID", at = @At("HEAD"), cancellable = true, remap = false)
     private static void unchainedCheckUUID(UUID id, CallbackInfoReturnable<Boolean> cir) {
         cir.setReturnValue(false); 
     }
 
-    @Inject(method = "auth", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "auth", at = @At("HEAD"), cancellable = true, remap = false)
     private static void unchainedAuth(CallbackInfo ci) {
         authCheck = 6000;
         com.bulbat0n.figuraunchained.auth.UnchainedAuth.init();
@@ -49,7 +49,7 @@ public abstract class NetworkStuffMixin {
                 backendStatus = 1;
                 return;
             }
-            String tokenPayload = MinecraftClient.getInstance().getSession().getUuidOrNull().toString();
+            String tokenPayload = Minecraft.getInstance().getUser().getProfileId().toString();
             if (com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT != null && !com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT.isEmpty()) {
                 tokenPayload += ":" + com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT;
             }
@@ -60,7 +60,7 @@ public abstract class NetworkStuffMixin {
         ci.cancel(); 
     }
 
-    @Inject(method = "reAuth", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "reAuth", at = @At("HEAD"), cancellable = true, remap = false)
     private static void unchainedReAuth(CallbackInfo ci) {
         authCheck = 6000;
         com.bulbat0n.figuraunchained.auth.UnchainedAuth.init();
@@ -76,7 +76,7 @@ public abstract class NetworkStuffMixin {
                 backendStatus = 1;
                 return;
             }
-            String tokenPayload = MinecraftClient.getInstance().getSession().getUuidOrNull().toString();
+            String tokenPayload = Minecraft.getInstance().getUser().getProfileId().toString();
             if (com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT != null && !com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT.isEmpty()) {
                 tokenPayload += ":" + com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT;
             }
@@ -87,7 +87,7 @@ public abstract class NetworkStuffMixin {
         ci.cancel();
     }
 
-    @Inject(method = "connectWS", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "connectWS", at = @At("HEAD"), cancellable = true, remap = false)
     private static void unchainedConnectWS(String tokenPayload, CallbackInfo ci) {
         if (ws != null) ws.disconnect();
         try {

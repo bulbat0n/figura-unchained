@@ -1,0 +1,32 @@
+architectury {
+    platformSetupLoomIde()
+    neoForge()
+}
+
+base {
+    archivesName = "figura-unchained"
+}
+version = "${project.mod_version}+mc${project.minecraft_version}+neoforge+figura${project.figura_version}"
+
+dependencies {
+    neoForge "net.neoforged:neoforge:${project.neoforge_version}"
+    
+    implementation project(path: ":common", configuration: "namedElements")
+    
+    modImplementation files("../libs/figura-${project.figura_version}+${project.minecraft_version}-neoforge-mc.jar")
+}
+
+processResources {
+    from project(":common").sourceSets.main.resources
+    
+    inputs.property "version", project.version
+    filesMatching("META-INF/neoforge.mods.toml") {
+        expand "version": project.version
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.withType(Jar).configureEach {
+    from project(":common").sourceSets.main.output
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}

@@ -10,7 +10,7 @@ import java.util.UUID;
 @Mixin(EntityUtils.class)
 public class EntityUtilsMixin {
     
-    @Inject(method = "checkInvalidPlayer", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "checkInvalidPlayer", at = @At("HEAD"), cancellable = true, remap = false)
     private static void bypassEntityUUIDCheck(UUID id, CallbackInfoReturnable<Boolean> cir) {
         cir.setReturnValue(false);
     }

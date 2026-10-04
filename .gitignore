@@ -53,3 +53,16 @@ crash-reports/
 logs/
 .mixin.out/
 usercache.json
+
+# ========================
+# Multiloaders and Heap Dumps
+# ========================
+*.hprof
+**/build/
+**/.gradle/
+**/.loom-cache/
+**/loom-cache/
+**/run/
+**/devlibs/
+**/generated/
+**/tmp/

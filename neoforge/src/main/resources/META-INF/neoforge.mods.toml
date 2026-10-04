@@ -1,0 +1,21 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="PolyForm-Noncommercial-1.0.0"
+
+[[mods]]
+modId="figura_unchained"
+version="${version}"
+displayName="Figura Unchained"
+authors="bulbat0n"
+description="Freedom for non-premium players."
+logoFile="assets/figura_unchained/icon.png"
+
+[[dependencies.figura_unchained]]
+modId="figura"
+type="required"
+versionRange="[0.1.6,)"
+ordering="AFTER"
+side="CLIENT"
+
+[[mixins]]
+config="figuraunchained.mixins.json"

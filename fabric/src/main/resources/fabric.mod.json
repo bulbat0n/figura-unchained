@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "figura-unchained",
+  "id": "figura_unchained",
   "version": "${version}",
   "name": "Figura Unchained",
   "description": "Freedom for non-premium players.",
@@ -12,7 +12,7 @@
     "issues": "https://github.com/bulbat0n/figura-unchained/issues"
   },
   "license": "PolyForm-Noncommercial-1.0.0",
-  "icon": "assets/figura-unchained/icon.png",
+  "icon": "assets/figura_unchained/icon.png",
   "environment": "client",
   "entrypoints": {
     "client": [
@@ -24,7 +24,7 @@
   ],
   "depends": {
     "fabricloader": ">=0.19.3",
-    "minecraft": "~1.21.10",
+    "minecraft": "~1.21.1",
     "java": ">=21",
     "figura": "*"
   },

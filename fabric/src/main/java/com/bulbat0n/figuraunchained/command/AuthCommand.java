@@ -5,14 +5,14 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
-import net.minecraft.command.CommandRegistryAccess;
+import net.minecraft.commands.CommandBuildContext;
 import com.bulbat0n.figuraunchained.auth.UnchainedAuth;
 import org.figuramc.figura.gui.FiguraToast;
 
 public class AuthCommand implements ClientCommandRegistrationCallback {
 
     @Override
-    public void register(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandRegistryAccess registryAccess) {
+    public void register(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext registryAccess) {
         dispatcher.register(ClientCommandManager.literal("figura-unchained")
             .then(ClientCommandManager.literal("register")
                 .then(ClientCommandManager.argument("password", StringArgumentType.string())

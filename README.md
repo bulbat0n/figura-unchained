@@ -19,8 +19,8 @@ To use Figura Unchained, you need to connect to a compatible custom backend. You
 ## 📦 Requirements & Dependencies
 
 This mod is an addon and requires the following to work:
-* **Minecraft:** 1.21.10
-* **Fabric Loader:** >=0.19.3
+* **Minecraft:** 1.21.1
+* **Fabric Loader:** >=0.19.5 or **Forge loader**: >= 21.1.100
 * **Java:** 21
 * **Compatible Figura:** [GitHub](https://github.com/FiguraMC/Figura)/[Modrinth](https://modrinth.com/mod/figura)
 

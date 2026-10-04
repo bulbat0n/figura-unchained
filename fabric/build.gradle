@@ -1,0 +1,33 @@
+architectury {
+    platformSetupLoomIde()
+    fabric()
+}
+
+dependencies {
+    modImplementation "net.fabricmc:fabric-loader:${project.fabric_loader_version}"
+    modApi "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    
+    implementation project(path: ":common", configuration: "namedElements")
+    
+    compileOnly files("../libs/figura-${project.figura_version}+${project.minecraft_version}-neoforge-mc.jar")
+}
+
+processResources {
+    from project(":common").sourceSets.main.resources
+    
+    inputs.property "version", project.version
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.withType(Jar).configureEach {
+    from project(":common").sourceSets.main.output
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+base {
+    archivesName = "figura-unchained"
+}
+version = "${project.mod_version}+mc${project.minecraft_version}+fabric+figura${project.figura_version}"

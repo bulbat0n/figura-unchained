@@ -1,30 +1,45 @@
 plugins {
-    id 'fabric-loom' version '1.17-SNAPSHOT'
+    id "architectury-plugin" version "3.5-SNAPSHOT"
+    id "dev.architectury.loom" version "1.7-SNAPSHOT" apply false
 }
 
-version = "${project.mod_version}+mc${project.minecraft_version}+fabric+figura${project.figura_version}"
-group = "com.bulbat0n.figuraunchained"
-
-base {
-    archivesName = "figura-unchained"
-} 
-
-java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+architectury {
+    minecraft = project.minecraft_version
 }
 
-dependencies {
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+subprojects {
+    apply plugin: "dev.architectury.loom"
+
+    loom {
+        silentMojangMappingsLicense()
+    }
+
+    dependencies {
+        minecraft "com.mojang:minecraft:${project.minecraft_version}"
+        mappings loom.officialMojangMappings()
+    }
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = "UTF-8"
+        options.release.set(21)
+    }
+}
+
+allprojects {
+    apply plugin: "java"
+    apply plugin: "architectury-plugin"
     
-    modImplementation files('libs/figura-0.1.5+1.21.10-fabric-mc.jar')
-    implementation "com.neovisionaries:nv-websocket-client:2.14"
-}
+    version = project.mod_version
+    group = project.maven_group
 
-processResources {
-    inputs.property "version", project.version
-    filesMatching("fabric.mod.json") { expand "version": project.version }
+    repositories {
+        maven { url = "https://maven.fabricmc.net/" }
+        maven { url = "https://maven.neoforged.net/releases/" }
+        mavenCentral()
+    }
 }

@@ -9,9 +9,9 @@ import org.figuramc.figura.backend2.HttpAPI;
 
 @Mixin(HttpAPI.class)
 public abstract class HttpAPIMixin {
-    @Shadow protected static String getBackendAddressWithPort() { return null; }
+    @Shadow(remap = false) protected static String getBackendAddressWithPort() { return null; }
 
-    @Inject(method = "getBackendAddress", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "getBackendAddress", at = @At("HEAD"), cancellable = true, remap = false)
     private static void unchainedGetBackendAddress(CallbackInfoReturnable<String> cir) {
         String address = getBackendAddressWithPort();
         

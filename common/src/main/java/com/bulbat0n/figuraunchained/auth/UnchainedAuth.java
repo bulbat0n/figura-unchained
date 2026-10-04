@@ -1,6 +1,6 @@
 package com.bulbat0n.figuraunchained.auth;
 
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import org.figuramc.figura.gui.FiguraToast;
 import com.bulbat0n.figuraunchained.mixin.HttpAPIAccessor;
 
@@ -20,8 +20,8 @@ public class UnchainedAuth {
 
     public static void init() {
         try {
-            String uuid = MinecraftClient.getInstance().getSession().getUuidOrNull().toString();
-            File dir = new File(MinecraftClient.getInstance().runDirectory, "config/figura-unchained");
+            String uuid = Minecraft.getInstance().getUser().getProfileId().toString();
+            File dir = new File(Minecraft.getInstance().gameDirectory, "config/figura-unchained");
             if (!dir.exists()) {
                 dir.mkdirs();
             }
@@ -89,8 +89,8 @@ public class UnchainedAuth {
                 return;
             }
             try {
-                String uuid = MinecraftClient.getInstance().getSession().getUuidOrNull().toString();
-                String username = MinecraftClient.getInstance().getSession().getUsername();
+                String uuid = Minecraft.getInstance().getUser().getProfileId().toString();
+                String username = Minecraft.getInstance().getUser().getName();
                 
                 String hash = getHash(password, username);
                 String json = "{\"uuid\":\"" + uuid + "\", \"hash\":\"" + hash + "\"}";
@@ -113,7 +113,7 @@ public class UnchainedAuth {
                     String token = body.split("\"token\"\\s*:\\s*\"")[1].split("\"")[0];
                     JWT = token;
                     
-                    File dir = new File(MinecraftClient.getInstance().runDirectory, "config/figura-unchained");
+                    File dir = new File(Minecraft.getInstance().gameDirectory, "config/figura-unchained");
                     if (!dir.exists()) {
                         dir.mkdirs();
                     }
