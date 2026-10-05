@@ -91,7 +91,7 @@ public abstract class NetworkStuffMixin {
     private static void unchainedConnectWS(String tokenPayload, CallbackInfo ci) {
         if (ws != null) ws.disconnect();
         try {
-            String wsUrl = HttpAPIAccessor.invokeGetUri("/ws").toString()
+            String wsUrl = HttpAPIAccessor.invokeGetUri("ws").toString()
                     .replace("http://", "ws://")
                     .replace("https://", "wss://");
                     

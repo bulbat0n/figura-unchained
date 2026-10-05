@@ -10,6 +10,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.io.File;
 import java.nio.file.Files;
@@ -56,17 +57,33 @@ public class UnchainedAuth {
         }
     }
     
+    private static final HttpClient CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
+
+    private static String getBaseUrl() {
+        String url = HttpAPIAccessor.invokeGetUri("").toString();
+        while (url.endsWith("/")) {
+            url = url.substring(0, url.length() - 1);
+        }
+        if (url.endsWith("/api")) {
+            url = url.substring(0, url.length() - 4);
+        }
+        while (url.endsWith("/")) {
+            url = url.substring(0, url.length() - 1);
+        }
+        return url;
+    }
+
     public static int checkVersion() {
         try {
-            String baseUrl = HttpAPIAccessor.invokeGetUri("").toString().replace("/api", "");
-            if (baseUrl.endsWith("/")) {
-                baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
-            }
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(baseUrl + "/api/version"))
+                    .uri(URI.create(getBaseUrl() + "/api/version"))
+                    .timeout(REQUEST_TIMEOUT)
                     .GET()
                     .build();
-            HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
                 String body = response.body().replaceAll("\\s+", "");
                 if (body.contains("\"unchained_api\":1")) {
@@ -79,7 +96,7 @@ public class UnchainedAuth {
         return 0;
     }
     public static void performAuth(String action, String password) {
-        new Thread(() -> {
+        Thread worker = new Thread(() -> {
             int vStatus = checkVersion();
             if (vStatus == 0) {
                 FiguraToast.sendToast("Connection Error", "Backend is offline or unreachable.", FiguraToast.ToastType.ERROR);
@@ -95,18 +112,14 @@ public class UnchainedAuth {
                 String hash = getHash(password, username);
                 String json = "{\"uuid\":\"" + uuid + "\", \"hash\":\"" + hash + "\"}";
                 
-                String baseUrl = HttpAPIAccessor.invokeGetUri("").toString().replace("/api", "");
-                if (baseUrl.endsWith("/")) {
-                    baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
-                }
-                
                 HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(baseUrl + "/api/auth/" + action))
+                        .uri(URI.create(getBaseUrl() + "/api/auth/" + action))
+                        .timeout(REQUEST_TIMEOUT)
                         .header("Content-Type", "application/json")
                         .POST(HttpRequest.BodyPublishers.ofString(json))
                         .build();
 
-                HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
                 String body = response.body();
                 
                 if (response.statusCode() == 200) {
@@ -148,6 +161,8 @@ public class UnchainedAuth {
                 }
                 FiguraToast.sendToast("Auth Error", errMsg, FiguraToast.ToastType.ERROR);
             }
-        }).start();
+        }, "figura-unchained-auth");
+        worker.setDaemon(true);
+        worker.start();
     }
 }
