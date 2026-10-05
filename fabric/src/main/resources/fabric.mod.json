@@ -16,7 +16,7 @@
   "environment": "client",
   "entrypoints": {
     "client": [
-      "com.bulbat0n.figuraunchained.FiguraUnchainedClient"
+      "com.bulbat0n.figuraunchained.fabric.FiguraUnchainedFabricClient"
     ]
   },
   "mixins": [
