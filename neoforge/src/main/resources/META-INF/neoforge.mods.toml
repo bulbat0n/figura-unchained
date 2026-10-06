@@ -13,7 +13,7 @@ logoFile="assets/figura_unchained/icon.png"
 [[dependencies.figura_unchained]]
 modId="minecraft"
 type="required"
-versionRange="[1.21.1]"
+versionRange="[1.21.4]"
 ordering="NONE"
 side="CLIENT"
 
