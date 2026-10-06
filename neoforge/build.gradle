@@ -6,7 +6,7 @@ architectury {
 base {
     archivesName = "figura-unchained"
 }
-version = "${project.mod_version}+mc${project.minecraft_version}+neoforge+figura${project.figura_version}"
+version = "${project.mod_version}+mc${project.neoforge_minecraft_label}+neoforge+figura${project.figura_version}"
 
 dependencies {
     neoForge "net.neoforged:neoforge:${project.neoforge_version}"

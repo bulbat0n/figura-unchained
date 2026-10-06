@@ -11,9 +11,16 @@ description="Freedom for non-premium players."
 logoFile="assets/figura_unchained/icon.png"
 
 [[dependencies.figura_unchained]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1]"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.figura_unchained]]
 modId="figura"
 type="required"
-versionRange="[0.1.6,)"
+versionRange="[0.1.6,0.1.7)"
 ordering="AFTER"
 side="CLIENT"
 

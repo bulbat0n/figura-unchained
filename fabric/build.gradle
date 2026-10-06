@@ -30,4 +30,4 @@ tasks.withType(Jar).configureEach {
 base {
     archivesName = "figura-unchained"
 }
-version = "${project.mod_version}+mc${project.minecraft_version}+fabric+figura${project.figura_version}"
+version = "${project.mod_version}+mc${project.fabric_minecraft_label}+fabric+figura${project.figura_version}"
