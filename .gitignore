@@ -21,6 +21,7 @@ bin/
 .settings/
 .factorypath
 .vscode/
+.architectury-transformer/
 
 # ========================
 # Fabric Loom & Minecraft
