@@ -1,22 +1,32 @@
 architectury {
     platformSetupLoomIde()
-    fabric()
+    forge()
 }
 
+loom {
+    forge {
+        mixinConfig "figuraunchained.mixins.json"
+    }
+}
+
+base {
+    archivesName = "figura-unchained"
+}
+version = "${project.mod_version}+mc${project.forge_minecraft_label}+forge+figura${project.figura_version}"
+
 dependencies {
-    modImplementation "net.fabricmc:fabric-loader:${project.fabric_loader_version}"
-    modApi "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    forge "net.minecraftforge:forge:${project.forge_version}"
     
     implementation project(path: ":common", configuration: "namedElements")
     
-    compileOnly files("../libs/figura-${project.figura_version}+${project.minecraft_version}-forge-mc.jar")
+    modImplementation files("../libs/figura-${project.figura_version}+${project.minecraft_version}-forge-mc.jar")
 }
 
 processResources {
     from project(":common").sourceSets.main.resources
     
     inputs.property "version", project.version
-    filesMatching("fabric.mod.json") {
+    filesMatching("META-INF/mods.toml") {
         expand "version": project.version
     }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -26,8 +36,3 @@ tasks.withType(Jar).configureEach {
     from project(":common").sourceSets.main.output
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
-
-base {
-    archivesName = "figura-unchained"
-}
-version = "${project.mod_version}+mc${project.fabric_minecraft_label}+fabric+figura${project.figura_version}"

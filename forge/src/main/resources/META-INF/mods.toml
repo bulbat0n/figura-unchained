@@ -1,0 +1,30 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="PolyForm-Noncommercial-1.0.0"
+issueTrackerURL="https://github.com/bulbat0n/figura-unchained/issues"
+
+[[mods]]
+modId="figura_unchained"
+version="${version}"
+displayName="Figura Unchained"
+authors="bulbat0n"
+description="Freedom for non-premium players."
+logoFile="assets/figura_unchained/icon.png"
+displayURL="https://github.com/bulbat0n/figura-unchained"
+
+[[dependencies.figura_unchained]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1]"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.figura_unchained]]
+modId="figura"
+mandatory=true
+versionRange="[0.1.6,0.1.7)"
+ordering="AFTER"
+side="CLIENT"
+
+[[mixins]]
+config="figuraunchained.mixins.json"

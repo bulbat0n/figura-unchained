@@ -19,9 +19,13 @@ public class UnchainedAuth {
     public static String JWT = "";
     private static File TOKEN_FILE = null;
 
+    public static String getLocalUuid() {
+        return Minecraft.getInstance().getUser().getGameProfile().getId().toString();
+    }
+
     public static void init() {
         try {
-            String uuid = Minecraft.getInstance().getUser().getProfileId().toString();
+            String uuid = getLocalUuid();
             File dir = new File(Minecraft.getInstance().gameDirectory, "config/figura-unchained");
             if (!dir.exists()) {
                 dir.mkdirs();
@@ -106,7 +110,7 @@ public class UnchainedAuth {
                 return;
             }
             try {
-                String uuid = Minecraft.getInstance().getUser().getProfileId().toString();
+                String uuid = getLocalUuid();
                 String username = Minecraft.getInstance().getUser().getName();
                 
                 String hash = getHash(password, username);
