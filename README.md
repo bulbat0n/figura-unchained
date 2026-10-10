@@ -16,6 +16,11 @@ To use Figura Unchained, you need to connect to a compatible custom backend. You
 
 ---
 
+## Warning
+The addon doesn't work in singleplayer with launchers that generate pseudo v4 UUIDs. To fix this, use an open-source launcher that generates offline v3 UUIDs based on your username
+
+---
+
 ## 📦 Requirements & Dependencies
 
 This mod is an addon and requires the following to work:

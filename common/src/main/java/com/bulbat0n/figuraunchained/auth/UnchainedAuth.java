@@ -14,13 +14,15 @@ import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.io.File;
 import java.nio.file.Files;
+import java.util.UUID;
 
 public class UnchainedAuth {
     public static String JWT = "";
     private static File TOKEN_FILE = null;
 
     public static String getLocalUuid() {
-        return Minecraft.getInstance().getUser().getGameProfile().getId().toString();
+        String name = Minecraft.getInstance().getUser().getName();
+        return UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     public static void init() {
