@@ -8,7 +8,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.figuramc.figura.backend2.NetworkStuff;
 import org.figuramc.figura.FiguraMod;
-import net.minecraft.client.Minecraft;
 
 import com.neovisionaries.ws.client.WebSocket;
 import com.neovisionaries.ws.client.WebSocketFactory;
@@ -49,7 +48,7 @@ public abstract class NetworkStuffMixin {
                 backendStatus = 1;
                 return;
             }
-            String tokenPayload = Minecraft.getInstance().getUser().getProfileId().toString();
+            String tokenPayload = com.bulbat0n.figuraunchained.auth.UnchainedAuth.getLocalUuid();
             if (com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT != null && !com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT.isEmpty()) {
                 tokenPayload += ":" + com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT;
             }
@@ -76,7 +75,7 @@ public abstract class NetworkStuffMixin {
                 backendStatus = 1;
                 return;
             }
-            String tokenPayload = Minecraft.getInstance().getUser().getProfileId().toString();
+            String tokenPayload = com.bulbat0n.figuraunchained.auth.UnchainedAuth.getLocalUuid();
             if (com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT != null && !com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT.isEmpty()) {
                 tokenPayload += ":" + com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT;
             }
