@@ -29,6 +29,9 @@ processResources {
     filesMatching("META-INF/mods.toml") {
         expand "version": project.version
     }
+    filesMatching("figura_unchained_build.properties") {
+        expand "version": project.version
+    }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 

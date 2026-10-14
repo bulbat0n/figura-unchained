@@ -100,14 +100,12 @@ public abstract class NetworkStuffMixin {
                     .setConnectionTimeout(5000)
                     .createSocket(wsUrl);
             
-            String uuid = tokenPayload;
             if (tokenPayload.contains(":")) {
-                String[] parts = tokenPayload.split(":", 2);
-                uuid = parts[0];
-                ws.addHeader("Authorization", "Bearer " + parts[1]);
+                ws.addHeader("Authorization", "Bearer " + tokenPayload.split(":", 2)[1]);
             }
-                    
-            ws.addHeader("token", uuid);
+            ws.addHeader("token", tokenPayload);
+
+            com.bulbat0n.figuraunchained.auth.UnchainedAuth.applyClientHeaders(ws::addHeader);
                     
             ws.addListener(new WebSocketAdapter() {
                 @Override
