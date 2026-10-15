@@ -19,6 +19,9 @@ processResources {
     filesMatching("fabric.mod.json") {
         expand "version": project.version
     }
+    filesMatching("figura_unchained_build.properties") {
+        expand "version": project.version
+    }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
