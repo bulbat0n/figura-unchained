@@ -6,10 +6,18 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.figuramc.figura.backend2.HttpAPI;
+import com.bulbat0n.figuraunchained.auth.UnchainedAuth;
+
+import java.net.http.HttpRequest;
 
 @Mixin(HttpAPI.class)
 public abstract class HttpAPIMixin {
     @Shadow(remap = false) protected static String getBackendAddressWithPort() { return null; }
+
+    @Inject(method = "header", at = @At("RETURN"), remap = false)
+    private void unchainedClientHeaders(String url, CallbackInfoReturnable<HttpRequest.Builder> cir) {
+        UnchainedAuth.applyClientHeaders(cir.getReturnValue()::header);
+    }
 
     @Inject(method = "getBackendAddress", at = @At("HEAD"), cancellable = true, remap = false)
     private static void unchainedGetBackendAddress(CallbackInfoReturnable<String> cir) {

@@ -13,16 +13,76 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.io.File;
+import java.io.InputStream;
+import java.net.URLEncoder;
 import java.nio.file.Files;
+import java.util.Properties;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 
 public class UnchainedAuth {
     public static String JWT = "";
     private static File TOKEN_FILE = null;
 
+    private static String addonVersion = null;
+
+    public static String getUsername() {
+        return Minecraft.getInstance().getUser().getName();
+    }
+
+    public static String getCanonicalUuid(String username) {
+        return UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
     public static String getLocalUuid() {
-        String name = Minecraft.getInstance().getUser().getName();
-        return UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8)).toString();
+        return getCanonicalUuid(getUsername());
+    }
+
+    public static String getSessionUuid() {
+        UUID id = Minecraft.getInstance().getUser().getProfileId();
+        return id == null ? null : id.toString();
+    }
+
+    public static String getAddonVersion() {
+        if (addonVersion == null) {
+            String v = "unknown";
+            try (InputStream in = UnchainedAuth.class.getResourceAsStream("/figura_unchained_build.properties")) {
+                if (in != null) {
+                    Properties p = new Properties();
+                    p.load(in);
+                    String read = p.getProperty("version", "").trim();
+                    if (!read.isEmpty() && !read.startsWith("$")) v = read;
+                }
+            } catch (Exception ignored) {}
+            addonVersion = v;
+        }
+        return addonVersion;
+    }
+
+    private static String encodeHeader(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    public static void applyClientHeaders(BiConsumer<String, String> setter) {
+        try {
+            setter.accept("client-username", encodeHeader(getUsername()));
+            String session = getSessionUuid();
+            if (session != null) setter.accept("client-uuid", session);
+            setter.accept("addon-version", getAddonVersion());
+        } catch (Exception ignored) {}
+    }
+
+    private static String jsonEscape(String s) {
+        StringBuilder sb = new StringBuilder();
+        for (char c : s.toCharArray()) {
+            switch (c) {
+                case '"': sb.append("\\\""); break;
+                case '\\': sb.append("\\\\"); break;
+                default:
+                    if (c < 0x20) sb.append(String.format("\\u%04x", (int) c)); else sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     public static void init() {
@@ -116,14 +176,15 @@ public class UnchainedAuth {
                 String username = Minecraft.getInstance().getUser().getName();
                 
                 String hash = getHash(password, username);
-                String json = "{\"uuid\":\"" + uuid + "\", \"hash\":\"" + hash + "\"}";
+                String json = "{\"uuid\":\"" + uuid + "\", \"username\":\"" + jsonEscape(username) + "\", \"hash\":\"" + hash + "\"}";
                 
-                HttpRequest request = HttpRequest.newBuilder()
+                HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                         .uri(URI.create(getBaseUrl() + "/api/auth/" + action))
                         .timeout(REQUEST_TIMEOUT)
                         .header("Content-Type", "application/json")
-                        .POST(HttpRequest.BodyPublishers.ofString(json))
-                        .build();
+                        .POST(HttpRequest.BodyPublishers.ofString(json));
+                applyClientHeaders(requestBuilder::header);
+                HttpRequest request = requestBuilder.build();
 
                 HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
                 String body = response.body();
