@@ -13,6 +13,7 @@ import com.neovisionaries.ws.client.WebSocket;
 import com.neovisionaries.ws.client.WebSocketFactory;
 import com.neovisionaries.ws.client.WebSocketAdapter;
 import com.neovisionaries.ws.client.WebSocketException;
+import com.neovisionaries.ws.client.WebSocketFrame;
 import org.figuramc.figura.backend2.websocket.S2CMessageHandler;
 
 import java.nio.ByteBuffer;
@@ -117,10 +118,25 @@ public abstract class NetworkStuffMixin {
                 public void onError(WebSocket websocket, WebSocketException cause) throws Exception {
                     FiguraMod.LOGGER.error("WS Error: " + cause.getMessage());
                 }
+
+                @Override
+                public void onConnectError(WebSocket websocket, WebSocketException cause) throws Exception {
+                    FiguraMod.LOGGER.error("WS connect failed: " + cause.getMessage());
+                    NetworkStuff.disconnect("Could not connect to the backend");
+                }
+
+                @Override
+                public void onDisconnected(WebSocket websocket, WebSocketFrame serverCloseFrame, WebSocketFrame clientCloseFrame, boolean closedByServer) throws Exception {
+                    if (serverCloseFrame == null || serverCloseFrame.getCloseCode() != 4100) return;
+                    String reason = serverCloseFrame.getCloseReason();
+                    String min = reason == null ? "" : reason.replaceAll("[^0-9A-Za-z.+_\\-]", "");
+                    String message = "Minimum version for your backend is " + min;
+                    org.figuramc.figura.gui.FiguraToast.sendToast("Please update Figura Unchained", message, org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+                    NetworkStuff.disconnect("Please update Figura Unchained\n" + message);
+                }
             });
             
             ws.connectAsynchronously();
-            backendStatus = 3; 
         } catch (Exception e) {
             FiguraMod.LOGGER.error("WebSocket connection error: " + e.getMessage());
             backendStatus = 1;
