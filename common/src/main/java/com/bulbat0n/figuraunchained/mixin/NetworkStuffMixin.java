@@ -90,6 +90,7 @@ public abstract class NetworkStuffMixin {
     @Inject(method = "connectWS", at = @At("HEAD"), cancellable = true, remap = false)
     private static void unchainedConnectWS(String tokenPayload, CallbackInfo ci) {
         if (ws != null) ws.disconnect();
+        com.bulbat0n.figuraunchained.auth.UnchainedAuth.awaitPlayer();
         try {
             String wsUrl = HttpAPIAccessor.invokeGetUri("ws").toString()
                     .replace("http://", "ws://")
