@@ -43,6 +43,23 @@ public class UnchainedAuth {
         return id == null ? null : id.toString();
     }
 
+    public static String getWorldUuid() {
+        Minecraft mc = Minecraft.getInstance();
+        return mc.player == null ? null : mc.player.getUUID().toString();
+    }
+
+    public static void awaitPlayer() {
+        Minecraft mc = Minecraft.getInstance();
+        for (int i = 0; i < 60 && mc.level != null && mc.player == null; i++) {
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+    }
+
     public static String getAddonVersion() {
         if (addonVersion == null) {
             String v = "unknown";
@@ -68,6 +85,8 @@ public class UnchainedAuth {
             setter.accept("client-username", encodeHeader(getUsername()));
             String session = getSessionUuid();
             if (session != null) setter.accept("client-uuid", session);
+            String world = getWorldUuid();
+            if (world != null && !world.equalsIgnoreCase(getLocalUuid()) && !world.equalsIgnoreCase(session)) setter.accept("client-world-uuid", world);
             setter.accept("addon-version", getAddonVersion());
         } catch (Exception ignored) {}
     }
