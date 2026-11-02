@@ -39,7 +39,7 @@ public abstract class NetworkStuffMixin {
         com.bulbat0n.figuraunchained.auth.UnchainedAuth.init();
         
         new Thread(() -> {
-            int vStatus = com.bulbat0n.figuraunchained.auth.UnchainedAuth.checkVersion();
+            int vStatus = com.bulbat0n.figuraunchained.auth.UnchainedAuth.checkVersionResolving();
             if (vStatus == 0) {
                 org.figuramc.figura.gui.FiguraToast.sendToast("Connection Error", "Backend is offline or unreachable.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
                 backendStatus = 1;
@@ -47,6 +47,10 @@ public abstract class NetworkStuffMixin {
             } else if (vStatus == 1) {
                 org.figuramc.figura.gui.FiguraToast.sendToast("Version Mismatch", "Incompatible Unchained Backend.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
                 backendStatus = 1;
+                return;
+            } else if (vStatus == 3 || vStatus == 4) {
+                backendStatus = 1;
+                com.bulbat0n.figuraunchained.gui.ConsentScreen.hintIfNeeded();
                 return;
             }
             String tokenPayload = com.bulbat0n.figuraunchained.auth.UnchainedAuth.getLocalUuid();
@@ -66,7 +70,7 @@ public abstract class NetworkStuffMixin {
         com.bulbat0n.figuraunchained.auth.UnchainedAuth.init();
         
         new Thread(() -> {
-            int vStatus = com.bulbat0n.figuraunchained.auth.UnchainedAuth.checkVersion();
+            int vStatus = com.bulbat0n.figuraunchained.auth.UnchainedAuth.checkVersionResolving();
             if (vStatus == 0) {
                 org.figuramc.figura.gui.FiguraToast.sendToast("Connection Error", "Backend is offline or unreachable.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
                 backendStatus = 1;
@@ -74,6 +78,10 @@ public abstract class NetworkStuffMixin {
             } else if (vStatus == 1) {
                 org.figuramc.figura.gui.FiguraToast.sendToast("Version Mismatch", "Incompatible Unchained Backend.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
                 backendStatus = 1;
+                return;
+            } else if (vStatus == 3 || vStatus == 4) {
+                backendStatus = 1;
+                com.bulbat0n.figuraunchained.gui.ConsentScreen.hintIfNeeded();
                 return;
             }
             String tokenPayload = com.bulbat0n.figuraunchained.auth.UnchainedAuth.getLocalUuid();

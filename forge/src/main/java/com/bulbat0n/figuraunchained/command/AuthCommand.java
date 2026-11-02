@@ -5,6 +5,7 @@ import net.minecraft.commands.Commands;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import com.bulbat0n.figuraunchained.auth.UnchainedAuth;
+import com.bulbat0n.figuraunchained.gui.ConsentScreen;
 import org.figuramc.figura.gui.FiguraToast;
 
 public class AuthCommand {
@@ -32,6 +33,12 @@ public class AuthCommand {
                         return 1;
                     })
                 )
+            )
+            .then(Commands.literal("consent")
+                .executes(context -> {
+                    ConsentScreen.openLater();
+                    return 1;
+                })
             )
         );
     }

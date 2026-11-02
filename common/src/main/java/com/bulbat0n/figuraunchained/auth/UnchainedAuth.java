@@ -2,6 +2,8 @@ package com.bulbat0n.figuraunchained.auth;
 
 import net.minecraft.client.Minecraft;
 import org.figuramc.figura.gui.FiguraToast;
+import com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint;
+import com.bulbat0n.figuraunchained.gui.ConsentScreen;
 import com.bulbat0n.figuraunchained.mixin.HttpAPIAccessor;
 
 import javax.crypto.SecretKeyFactory;
@@ -180,14 +182,43 @@ public class UnchainedAuth {
         } catch (Exception e) {}
         return 0;
     }
+
+    public static int checkVersionResolving() {
+        UnchainedEndpoint.awaitReady();
+        if (UnchainedEndpoint.isUndecided()) {
+            return 4;
+        }
+        if (UnchainedEndpoint.isBlocked()) {
+            return 3;
+        }
+        int status = checkVersion();
+        if (status == 0) {
+            boolean changed = UnchainedEndpoint.retryAfterFailure();
+            if (UnchainedEndpoint.isBlocked()) {
+                return 3;
+            }
+            if (changed) {
+                status = checkVersion();
+            }
+        }
+        return status;
+    }
+
     public static void performAuth(String action, String password) {
         Thread worker = new Thread(() -> {
-            int vStatus = checkVersion();
+            int vStatus = checkVersionResolving();
             if (vStatus == 0) {
                 FiguraToast.sendToast("Connection Error", "Backend is offline or unreachable.", FiguraToast.ToastType.ERROR);
                 return;
             } else if (vStatus == 1) {
                 FiguraToast.sendToast("Version Mismatch", "Incompatible Unchained Backend.", FiguraToast.ToastType.ERROR);
+                return;
+            } else if (vStatus == 3) {
+                FiguraToast.sendToast("Connection blocked", "Approve the new address first.", FiguraToast.ToastType.ERROR);
+                return;
+            } else if (vStatus == 4) {
+                FiguraToast.sendToast("Answer required", "Choose Yes or No.", FiguraToast.ToastType.ERROR);
+                ConsentScreen.openLater();
                 return;
             }
             try {

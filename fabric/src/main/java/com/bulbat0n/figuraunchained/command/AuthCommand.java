@@ -7,6 +7,7 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.commands.CommandBuildContext;
 import com.bulbat0n.figuraunchained.auth.UnchainedAuth;
+import com.bulbat0n.figuraunchained.gui.ConsentScreen;
 import org.figuramc.figura.gui.FiguraToast;
 
 public class AuthCommand implements ClientCommandRegistrationCallback {
@@ -35,6 +36,12 @@ public class AuthCommand implements ClientCommandRegistrationCallback {
                         return 1;
                     })
                 )
+            )
+            .then(ClientCommandManager.literal("consent")
+                .executes(context -> {
+                    ConsentScreen.openLater();
+                    return 1;
+                })
             )
         );
     }

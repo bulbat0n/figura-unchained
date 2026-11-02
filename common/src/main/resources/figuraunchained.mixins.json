@@ -8,7 +8,8 @@
     "HttpAPIMixin",
     "NetworkStuffMixin",
     "EntityUtilsMixin",
-    "ConfigsMixin"
+    "ConfigsMixin",
+    "FiguraTickMixin"
   ],
   "injectors": {
     "defaultRequire": 1
