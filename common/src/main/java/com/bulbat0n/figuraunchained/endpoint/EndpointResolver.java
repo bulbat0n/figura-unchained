@@ -185,7 +185,7 @@ public final class EndpointResolver {
             if (document.seq < state.lastSeq) {
                 return fallback(state, now, "stale endpoint document", false);
             }
-            return accept(state, now, document.ip, document.seq);
+            return propose(state, document);
         }
         if (document.seq > state.lastSeq) {
             if (document.ip.equals(state.approvedIp)) {

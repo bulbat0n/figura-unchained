@@ -42,7 +42,7 @@ public final class UnchainedEndpoint {
 
         @Override
         public void onPending(EndpointResolver.Pending pending) {
-            FiguraMod.LOGGER.warn("Unchained: the public server address changed to " + pending.ip + " (seq " + pending.seq + "), waiting for approval");
+            FiguraMod.LOGGER.warn("Unchained: the public server address is " + pending.ip + " (seq " + pending.seq + "), waiting for approval");
         }
 
         @Override

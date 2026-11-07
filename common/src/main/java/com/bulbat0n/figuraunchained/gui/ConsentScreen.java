@@ -22,7 +22,8 @@ public class ConsentScreen extends Screen {
     private static final String TITLE = "Public Figura Unchained server";
     private static final String[] PARAGRAPHS = {
             "Figura Unchained can connect you to a public server so your avatar is visible to other players. You must answer before the addon makes any network connection.",
-            "If you choose Yes: the addon downloads a small signed file from GitHub that tells it where the public server is (GitHub sees your IP address). The server and its hosting provider then receive your nickname, UUID, IP address, avatars, login token and password hash.",
+            "Step 1 of 2. If you choose Yes, the addon downloads a small signed file from GitHub that tells it where the public server is (GitHub sees your IP address). Nothing is sent to the public server yet.",
+            "Step 2 of 2. You will then be shown the server address and asked to approve it. Only after you approve do the server and its hosting provider receive your nickname, UUID, IP address, avatars, login token and password hash.",
             "If you choose No: the addon only connects to a server on your own computer (localhost:55000).",
             "You can change your answer at any time with /figura-unchained consent. To use a different server, enter its address in the Figura Cloud IP field in Figura's settings."
     };
@@ -161,5 +162,8 @@ public class ConsentScreen extends Screen {
         UnchainedEndpoint.decide(decision);
         NetworkStuff.reAuth();
         Minecraft.getInstance().setScreen(next);
+        if (decision == ConsentState.Decision.YES) {
+            ChangeScreen.openWhenReady();
+        }
     }
 }
