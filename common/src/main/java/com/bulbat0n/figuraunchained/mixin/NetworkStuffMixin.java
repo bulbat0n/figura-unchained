@@ -31,12 +31,12 @@ public abstract class NetworkStuffMixin {
 
     @Inject(method = "getResourcesHashes", at = @At("HEAD"), remap = false)
     private static void unchainedAwaitHashes(String version, CallbackInfoReturnable<InputStream> cir) {
-        com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint.awaitReady();
+        com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint.requireIdentity();
     }
 
     @Inject(method = "getResource", at = @At("HEAD"), remap = false)
     private static void unchainedAwaitResource(String version, String resource, CallbackInfoReturnable<InputStream> cir) {
-        com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint.awaitReady();
+        com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint.requireIdentity();
     }
 
     @Inject(method = "checkUUID", at = @At("HEAD"), cancellable = true, remap = false)
@@ -57,6 +57,10 @@ public abstract class NetworkStuffMixin {
                 return;
             } else if (vStatus == 1) {
                 com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Version Mismatch", "Incompatible Unchained Backend.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+                backendStatus = 1;
+                return;
+            } else if (vStatus == 5) {
+                com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Server identity", "Identity check failed.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
                 backendStatus = 1;
                 return;
             } else if (vStatus == 3 || vStatus == 4) {
@@ -88,6 +92,10 @@ public abstract class NetworkStuffMixin {
                 return;
             } else if (vStatus == 1) {
                 com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Version Mismatch", "Incompatible Unchained Backend.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+                backendStatus = 1;
+                return;
+            } else if (vStatus == 5) {
+                com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Server identity", "Identity check failed.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
                 backendStatus = 1;
                 return;
             } else if (vStatus == 3 || vStatus == 4) {

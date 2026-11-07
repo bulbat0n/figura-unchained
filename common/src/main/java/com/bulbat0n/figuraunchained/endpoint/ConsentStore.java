@@ -12,7 +12,7 @@ import java.util.Map;
 public final class ConsentStore {
     private static final int MAX_FILE_BYTES = 4096;
 
-    private static final EndpointResolver.Pending INVALID_PENDING = new EndpointResolver.Pending("", 0, "", "");
+    private static final EndpointResolver.Pending INVALID_PENDING = new EndpointResolver.Pending("", 0, "", "", "");
 
     private final Path path;
     private ConsentState cached;
@@ -79,6 +79,14 @@ public final class ConsentStore {
                 }
                 approvedIp = (String) value;
             }
+            String approvedSrv = null;
+            if (fields.containsKey("approved_srv")) {
+                Object value = fields.get("approved_srv");
+                if (!(value instanceof String) || !EndpointVerifier.isValidSrv((String) value)) {
+                    return ConsentState.EMPTY;
+                }
+                approvedSrv = (String) value;
+            }
             long lastSeq = readNonNegative(fields, "last_seq");
             long lastOk = readNonNegative(fields, "last_ok");
             if (lastSeq < 0 || lastOk < 0) {
@@ -91,18 +99,19 @@ public final class ConsentStore {
             if (decision != ConsentState.Decision.YES) {
                 pending = null;
             }
-            return new ConsentState(decision, approvedIp, lastSeq, lastOk, pending);
+            return new ConsentState(decision, approvedIp, approvedSrv, lastSeq, lastOk, pending);
         } catch (IOException | EndpointException e) {
             return ConsentState.EMPTY;
         }
     }
 
     private static EndpointResolver.Pending readPending(Map<String, Object> fields) {
-        boolean any = fields.containsKey("pending_ip") || fields.containsKey("pending_seq") || fields.containsKey("pending_sig") || fields.containsKey("pending_note");
+        boolean any = fields.containsKey("pending_ip") || fields.containsKey("pending_seq") || fields.containsKey("pending_sig") || fields.containsKey("pending_note") || fields.containsKey("pending_srv");
         if (!any) {
             return null;
         }
         Object ip = fields.get("pending_ip");
+        Object srv = fields.get("pending_srv");
         Object seq = fields.get("pending_seq");
         Object sig = fields.get("pending_sig");
         Object note = fields.containsKey("pending_note") ? fields.get("pending_note") : "";
@@ -112,10 +121,13 @@ public final class ConsentStore {
         if (!(seq instanceof Long) || (Long) seq < EndpointConstants.MIN_SEQ || (Long) seq > EndpointConstants.MAX_SEQ) {
             return INVALID_PENDING;
         }
+        if (!(srv instanceof String) || !EndpointVerifier.isValidSrv((String) srv)) {
+            return INVALID_PENDING;
+        }
         if (!(sig instanceof String) || !(note instanceof String) || !EndpointVerifier.isValidNote((String) note)) {
             return INVALID_PENDING;
         }
-        return new EndpointResolver.Pending((String) ip, (Long) seq, (String) note, (String) sig);
+        return new EndpointResolver.Pending((String) ip, (Long) seq, (String) note, (String) srv, (String) sig);
     }
 
     private static long readNonNegative(Map<String, Object> fields, String name) {
@@ -138,12 +150,16 @@ public final class ConsentStore {
         if (state.approvedIp != null) {
             values.put("approved_ip", state.approvedIp);
         }
+        if (state.approvedSrv != null) {
+            values.put("approved_srv", state.approvedSrv);
+        }
         values.put("last_seq", state.lastSeq);
         values.put("last_ok", state.lastOk);
         if (state.pending != null) {
             values.put("pending_ip", state.pending.ip);
             values.put("pending_seq", state.pending.seq);
             values.put("pending_note", state.pending.note);
+            values.put("pending_srv", state.pending.srv);
             values.put("pending_sig", state.pending.sig);
         }
         return FlatJson.write(values) + "\n";

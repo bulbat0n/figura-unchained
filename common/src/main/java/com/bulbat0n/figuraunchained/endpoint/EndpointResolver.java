@@ -15,12 +15,14 @@ public final class EndpointResolver {
         public final String ip;
         public final long seq;
         public final String note;
+        public final String srv;
         public final String sig;
 
-        public Pending(String ip, long seq, String note, String sig) {
+        public Pending(String ip, long seq, String note, String srv, String sig) {
             this.ip = ip;
             this.seq = seq;
             this.note = note;
+            this.srv = srv;
             this.sig = sig;
         }
     }
@@ -28,11 +30,13 @@ public final class EndpointResolver {
     public static final class Resolution {
         public final String host;
         public final Source source;
+        public final String srv;
         public final Pending pending;
 
-        public Resolution(String host, Source source, Pending pending) {
+        public Resolution(String host, Source source, String srv, Pending pending) {
             this.host = host;
             this.source = source;
+            this.srv = srv;
             this.pending = pending;
         }
     }
@@ -128,8 +132,8 @@ public final class EndpointResolver {
         if (!pendingValid(pending)) {
             return false;
         }
-        persist(state.accepted(pending.ip, pending.seq, clock.getAsLong()));
-        publish(new Resolution(pending.ip, Source.FETCHED, null));
+        persist(state.accepted(pending.ip, pending.srv, pending.seq, clock.getAsLong()));
+        publish(new Resolution(pending.ip, Source.FETCHED, pending.srv, null));
         return true;
     }
 
@@ -164,7 +168,7 @@ public final class EndpointResolver {
 
     private boolean pendingValid(Pending pending) {
         try {
-            verifier.verifyParts(pending.seq, pending.ip, pending.note, pending.sig);
+            verifier.verifyParts(pending.seq, pending.ip, pending.note, pending.srv, pending.sig);
             return true;
         } catch (EndpointException | RuntimeException e) {
             return false;
@@ -177,7 +181,7 @@ public final class EndpointResolver {
                 return publish(blocked(state.pending));
             }
             if (document.ip.equals(state.approvedIp)) {
-                return accept(state.withoutPending(), now, document.ip, document.seq);
+                return accept(state.withoutPending(), now, document.ip, document.srv, document.seq);
             }
             return propose(state, document);
         }
@@ -189,27 +193,27 @@ public final class EndpointResolver {
         }
         if (document.seq > state.lastSeq) {
             if (document.ip.equals(state.approvedIp)) {
-                return accept(state, now, document.ip, document.seq);
+                return accept(state, now, document.ip, document.srv, document.seq);
             }
             return propose(state, document);
         }
         if (document.seq == state.lastSeq && document.ip.equals(state.approvedIp)) {
-            return accept(state, now, document.ip, document.seq);
+            return accept(state, now, document.ip, document.srv, document.seq);
         }
         return fallback(state, now, "stale endpoint document", false);
     }
 
     private Resolution propose(ConsentState state, EndpointDocument document) {
-        Pending pending = new Pending(document.ip, document.seq, document.note, document.sig);
+        Pending pending = new Pending(document.ip, document.seq, document.note, document.srv, document.sig);
         persist(state.withPending(pending));
         Resolution blocked = publish(blocked(pending));
         listener.onPending(pending);
         return blocked;
     }
 
-    private Resolution accept(ConsentState state, long now, String ip, long seq) {
-        persist(state.accepted(ip, seq, now));
-        return publish(new Resolution(ip, Source.FETCHED, null));
+    private Resolution accept(ConsentState state, long now, String ip, String srv, long seq) {
+        persist(state.accepted(ip, srv, seq, now));
+        return publish(new Resolution(ip, Source.FETCHED, srv, null));
     }
 
     private Resolution fallback(ConsentState state, long now, String reason, boolean notify) {
@@ -217,18 +221,18 @@ public final class EndpointResolver {
             if (notify) {
                 listener.onCacheFallback(reason);
             }
-            return publish(new Resolution(state.approvedIp, Source.CACHED, null));
+            return publish(new Resolution(state.approvedIp, Source.CACHED, state.approvedSrv, null));
         }
         listener.onLocalFallback(reason);
         return publish(local());
     }
 
     private Resolution blocked(Pending pending) {
-        return new Resolution(EndpointConstants.LOCAL_HOST, Source.BLOCKED, pending);
+        return new Resolution(EndpointConstants.LOCAL_HOST, Source.BLOCKED, null, pending);
     }
 
     private Resolution local() {
-        return new Resolution(EndpointConstants.LOCAL_HOST, Source.LOCAL, null);
+        return new Resolution(EndpointConstants.LOCAL_HOST, Source.LOCAL, null, null);
     }
 
     private Resolution publish(Resolution resolution) {

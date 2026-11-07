@@ -2,6 +2,7 @@ package com.bulbat0n.figuraunchained.auth;
 
 import net.minecraft.client.Minecraft;
 import org.figuramc.figura.gui.FiguraToast;
+import com.bulbat0n.figuraunchained.endpoint.EndpointVerifier;
 import com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint;
 import com.bulbat0n.figuraunchained.gui.ConsentScreen;
 import com.bulbat0n.figuraunchained.gui.UnchainedToast;
@@ -26,6 +27,8 @@ import java.net.URLEncoder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.security.SecureRandom;
+import java.util.HexFormat;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.function.BiConsumer;
@@ -200,23 +203,43 @@ public class UnchainedAuth {
         Files.writeString(path, token);
     }
 
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    private static String newNonce() {
+        byte[] bytes = new byte[32];
+        RANDOM.nextBytes(bytes);
+        return HexFormat.of().formatHex(bytes);
+    }
+
     public static int checkVersion() {
         try {
+            String expected = UnchainedEndpoint.expectedIdentity();
+            String nonce = newNonce();
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(getBaseUrl() + "/api/version"))
+                    .uri(URI.create(getBaseUrl() + "/api/version?nonce=" + nonce))
                     .timeout(REQUEST_TIMEOUT)
                     .GET()
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
                 JsonObject json = parseObject(response.body());
+                boolean compatible = false;
                 if (json != null && json.has("unchained_api") && json.get("unchained_api").isJsonPrimitive()) {
                     try {
-                        return json.get("unchained_api").getAsInt() == 1 ? 2 : 1;
+                        compatible = json.get("unchained_api").getAsInt() == 1;
                     } catch (NumberFormatException ignored) {
                     }
                 }
-                return 1;
+                if (!compatible) {
+                    return 1;
+                }
+                if (expected != null) {
+                    if (!EndpointVerifier.verifyIdentity(expected, nonce, stringField(json, "sig"))) {
+                        return 5;
+                    }
+                    UnchainedEndpoint.markVerified();
+                }
+                return 2;
             }
             return 0;
         } catch (Exception e) {}
@@ -252,6 +275,9 @@ public class UnchainedAuth {
                 return;
             } else if (vStatus == 1) {
                 UnchainedToast.send("Version Mismatch", "Incompatible Unchained Backend.", FiguraToast.ToastType.ERROR);
+                return;
+            } else if (vStatus == 5) {
+                UnchainedToast.send("Server identity", "Identity check failed.", FiguraToast.ToastType.ERROR);
                 return;
             } else if (vStatus == 3) {
                 UnchainedToast.send("Connection blocked", "Approve the new address first.", FiguraToast.ToastType.ERROR);

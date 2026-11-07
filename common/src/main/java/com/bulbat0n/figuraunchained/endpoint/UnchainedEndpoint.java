@@ -51,6 +51,8 @@ public final class UnchainedEndpoint {
         }
     };
 
+    private static String verifiedKey;
+    private static long verifiedAt;
     private static ConsentStore store;
     private static EndpointResolver resolver;
     private static CompletableFuture<Void> ready;
@@ -105,6 +107,42 @@ public final class UnchainedEndpoint {
 
     public static String approvedIp() {
         return store().get().approvedIp;
+    }
+
+    public static String expectedIdentity() {
+        if (!isDefaultValue(Configs.SERVER_IP.value) || store().get().decision != ConsentState.Decision.YES) {
+            return null;
+        }
+        EndpointResolver.Resolution resolution = resolver().current();
+        if (resolution == null || (resolution.source != EndpointResolver.Source.FETCHED && resolution.source != EndpointResolver.Source.CACHED)) {
+            return null;
+        }
+        return resolution.srv;
+    }
+
+    private static String identityKey() {
+        EndpointResolver.Resolution resolution = resolver().current();
+        return resolution == null ? null : resolution.host + "|" + resolution.srv;
+    }
+
+    public static synchronized void markVerified() {
+        verifiedKey = identityKey();
+        verifiedAt = System.currentTimeMillis();
+    }
+
+    private static synchronized boolean recentlyVerified() {
+        String key = identityKey();
+        return key != null && key.equals(verifiedKey) && System.currentTimeMillis() - verifiedAt < EndpointConstants.IDENTITY_CACHE_MS;
+    }
+
+    public static void requireIdentity() {
+        awaitReady();
+        if (expectedIdentity() == null || recentlyVerified()) {
+            return;
+        }
+        if (UnchainedAuth.checkVersion() != 2) {
+            throw new IllegalStateException("server identity check failed");
+        }
     }
 
     public static boolean isUndecided() {
