@@ -49,22 +49,27 @@ public final class EndpointVerifier {
             throw new EndpointException("unsupported document version");
         }
         long seq = requireInteger(fields, "seq");
+        String ip = requireString(fields, "ip");
+        String note = fields.containsKey("note") ? requireString(fields, "note") : "";
+        String sig = requireString(fields, "sig");
+        return verifyParts(seq, ip, note, sig);
+    }
+
+    public EndpointDocument verifyParts(long seq, String ip, String note, String sig) throws EndpointException {
         if (seq < EndpointConstants.MIN_SEQ || seq > EndpointConstants.MAX_SEQ) {
             throw new EndpointException("seq is out of range");
         }
-        String ip = requireString(fields, "ip");
         if (!isValidHost(ip)) {
             throw new EndpointException("the host is not acceptable");
         }
-        String note = fields.containsKey("note") ? requireString(fields, "note") : "";
         if (!isValidNote(note)) {
             throw new EndpointException("the note is not acceptable");
         }
-        byte[] signature = decodeSignature(requireString(fields, "sig"));
+        byte[] signature = decodeSignature(sig);
         if (!signatureMatches(seq, ip, note, signature)) {
             throw new EndpointException("the signature does not match");
         }
-        return new EndpointDocument(seq, ip, note);
+        return new EndpointDocument(seq, ip, note, sig);
     }
 
     public static boolean isValidHost(String ip) {

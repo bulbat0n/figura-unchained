@@ -24,7 +24,7 @@ public class FiguraTickMixin {
             return;
         }
         UnchainedEndpoint.ensureStarted();
-        if (UnchainedEndpoint.pending() != null) {
+        if (UnchainedEndpoint.pending() != null && UnchainedEndpoint.isSettled()) {
             minecraft.setScreen(new ChangeScreen(minecraft.screen));
         }
     }

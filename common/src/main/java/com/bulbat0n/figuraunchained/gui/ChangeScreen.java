@@ -25,6 +25,7 @@ public class ChangeScreen extends Screen {
     private static final int ADDRESS_COLOR = 0xFFFF55;
 
     private final Screen next;
+    private final EndpointResolver.Pending shown;
     private final List<String> texts = new ArrayList<>();
     private final List<Integer> colors = new ArrayList<>();
     private final List<List<FormattedCharSequence>> body = new ArrayList<>();
@@ -36,6 +37,7 @@ public class ChangeScreen extends Screen {
         super(Component.literal(TITLE));
         this.next = next;
         EndpointResolver.Pending pending = UnchainedEndpoint.pending();
+        this.shown = pending;
         String previous = UnchainedEndpoint.approvedIp();
         add("The public Figura Unchained server has moved to a new address.", BODY_COLOR);
         if (previous != null) {
@@ -107,7 +109,10 @@ public class ChangeScreen extends Screen {
     private void answer(boolean approve) {
         EndpointResolver resolver = UnchainedEndpoint.resolver();
         if (approve) {
-            resolver.approvePending();
+            if (!resolver.approvePending(shown) && UnchainedEndpoint.pending() != null) {
+                Minecraft.getInstance().setScreen(new ChangeScreen(next));
+                return;
+            }
         } else {
             resolver.declinePending();
         }

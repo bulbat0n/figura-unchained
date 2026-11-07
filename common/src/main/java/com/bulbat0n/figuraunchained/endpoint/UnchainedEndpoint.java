@@ -94,8 +94,11 @@ public final class UnchainedEndpoint {
         if (!isDefaultValue(Configs.SERVER_IP.value) || store().get().decision != ConsentState.Decision.YES) {
             return null;
         }
-        EndpointResolver.Resolution resolution = resolver().current();
-        return resolution == null ? null : resolution.pending;
+        return store().get().pending;
+    }
+
+    public static synchronized boolean isSettled() {
+        return ready == null || ready.isDone();
     }
 
     public static String approvedIp() {
@@ -118,6 +121,9 @@ public final class UnchainedEndpoint {
             if (decision != ConsentState.Decision.YES) {
                 return EndpointConstants.LOCAL_HOST;
             }
+            if (store().get().pending != null) {
+                return EndpointConstants.LOCAL_HOST;
+            }
             EndpointResolver.Resolution resolution = resolver().current();
             return resolution == null ? EndpointConstants.LOCAL_HOST : resolution.host;
         } catch (RuntimeException e) {
@@ -138,6 +144,10 @@ public final class UnchainedEndpoint {
     public static boolean isBlocked() {
         if (!isDefaultValue(Configs.SERVER_IP.value)) {
             return false;
+        }
+        ConsentState state = store().get();
+        if (state.decision == ConsentState.Decision.YES && state.pending != null) {
+            return true;
         }
         EndpointResolver.Resolution resolution = resolver().current();
         return resolution != null && resolution.source == EndpointResolver.Source.BLOCKED;

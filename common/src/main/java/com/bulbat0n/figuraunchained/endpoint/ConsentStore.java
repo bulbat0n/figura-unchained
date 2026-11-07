@@ -12,6 +12,8 @@ import java.util.Map;
 public final class ConsentStore {
     private static final int MAX_FILE_BYTES = 4096;
 
+    private static final EndpointResolver.Pending INVALID_PENDING = new EndpointResolver.Pending("", 0, "", "");
+
     private final Path path;
     private ConsentState cached;
 
@@ -35,12 +37,16 @@ public final class ConsentStore {
         byte[] bytes = render(state).getBytes(StandardCharsets.UTF_8);
         Path parent = path.toAbsolutePath().getParent();
         Files.createDirectories(parent);
-        Path temp = parent.resolve(path.getFileName() + ".tmp");
-        Files.write(temp, bytes);
+        Path temp = Files.createTempFile(parent, path.getFileName() + ".", ".tmp");
         try {
-            Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException e) {
-            Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING);
+            Files.write(temp, bytes);
+            try {
+                Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temp);
         }
     }
 
@@ -78,10 +84,38 @@ public final class ConsentStore {
             if (lastSeq < 0 || lastOk < 0) {
                 return ConsentState.EMPTY;
             }
-            return new ConsentState(decision, approvedIp, lastSeq, lastOk);
+            EndpointResolver.Pending pending = readPending(fields);
+            if (pending == INVALID_PENDING) {
+                return ConsentState.EMPTY;
+            }
+            if (decision != ConsentState.Decision.YES) {
+                pending = null;
+            }
+            return new ConsentState(decision, approvedIp, lastSeq, lastOk, pending);
         } catch (IOException | EndpointException e) {
             return ConsentState.EMPTY;
         }
+    }
+
+    private static EndpointResolver.Pending readPending(Map<String, Object> fields) {
+        boolean any = fields.containsKey("pending_ip") || fields.containsKey("pending_seq") || fields.containsKey("pending_sig") || fields.containsKey("pending_note");
+        if (!any) {
+            return null;
+        }
+        Object ip = fields.get("pending_ip");
+        Object seq = fields.get("pending_seq");
+        Object sig = fields.get("pending_sig");
+        Object note = fields.containsKey("pending_note") ? fields.get("pending_note") : "";
+        if (!(ip instanceof String) || !EndpointVerifier.isValidHost((String) ip)) {
+            return INVALID_PENDING;
+        }
+        if (!(seq instanceof Long) || (Long) seq < 1 || (Long) seq > EndpointConstants.MAX_SEQ) {
+            return INVALID_PENDING;
+        }
+        if (!(sig instanceof String) || !(note instanceof String) || !EndpointVerifier.isValidNote((String) note)) {
+            return INVALID_PENDING;
+        }
+        return new EndpointResolver.Pending((String) ip, (Long) seq, (String) note, (String) sig);
     }
 
     private static long readNonNegative(Map<String, Object> fields, String name) {
@@ -106,6 +140,12 @@ public final class ConsentStore {
         }
         values.put("last_seq", state.lastSeq);
         values.put("last_ok", state.lastOk);
+        if (state.pending != null) {
+            values.put("pending_ip", state.pending.ip);
+            values.put("pending_seq", state.pending.seq);
+            values.put("pending_note", state.pending.note);
+            values.put("pending_sig", state.pending.sig);
+        }
         return FlatJson.write(values) + "\n";
     }
 }
