@@ -68,7 +68,7 @@ public class ConsentScreen extends Screen {
             return;
         }
         if (HINTED.compareAndSet(false, true)) {
-            FiguraToast.sendToast("Choose a server", "/figura-unchained consent", FiguraToast.ToastType.WARNING);
+            UnchainedToast.send("Choose a server", "/figura-unchained consent", FiguraToast.ToastType.WARNING);
         }
     }
 

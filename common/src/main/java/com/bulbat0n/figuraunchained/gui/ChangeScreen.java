@@ -117,6 +117,7 @@ public class ChangeScreen extends Screen {
             resolver.declinePending();
         }
         NetworkStuff.reAuth();
+        UnchainedEndpoint.refreshResources();
         Minecraft.getInstance().setScreen(next);
     }
 }

@@ -109,7 +109,7 @@ public final class ConsentStore {
         if (!(ip instanceof String) || !EndpointVerifier.isValidHost((String) ip)) {
             return INVALID_PENDING;
         }
-        if (!(seq instanceof Long) || (Long) seq < 1 || (Long) seq > EndpointConstants.MAX_SEQ) {
+        if (!(seq instanceof Long) || (Long) seq < EndpointConstants.MIN_SEQ || (Long) seq > EndpointConstants.MAX_SEQ) {
             return INVALID_PENDING;
         }
         if (!(sig instanceof String) || !(note instanceof String) || !EndpointVerifier.isValidNote((String) note)) {

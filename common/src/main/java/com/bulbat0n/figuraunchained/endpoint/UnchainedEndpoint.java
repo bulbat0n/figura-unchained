@@ -6,6 +6,8 @@ import org.figuramc.figura.FiguraMod;
 import org.figuramc.figura.config.ConfigManager;
 import org.figuramc.figura.config.Configs;
 import org.figuramc.figura.gui.FiguraToast;
+import org.figuramc.figura.resources.FiguraRuntimeResources;
+import com.bulbat0n.figuraunchained.gui.UnchainedToast;
 
 import java.io.File;
 import java.net.URI;
@@ -26,7 +28,7 @@ public final class UnchainedEndpoint {
         public void onCacheFallback(String reason) {
             FiguraMod.LOGGER.warn("Unchained: using the last known server address (" + reason + ")");
             if (CACHE_TOAST.compareAndSet(false, true)) {
-                FiguraToast.sendToast("Public server", "Using the last known address.", FiguraToast.ToastType.WARNING);
+                UnchainedToast.send("Endpoint unreachable", "Using the last known address.", FiguraToast.ToastType.WARNING);
             }
         }
 
@@ -34,7 +36,7 @@ public final class UnchainedEndpoint {
         public void onLocalFallback(String reason) {
             FiguraMod.LOGGER.warn("Unchained: using " + EndpointConstants.LOCAL_HOST + " (" + reason + ")");
             if (LOCAL_TOAST.compareAndSet(false, true)) {
-                FiguraToast.sendToast("Public server unavailable", "Using " + EndpointConstants.LOCAL_HOST + ".", FiguraToast.ToastType.WARNING);
+                UnchainedToast.send("Endpoint unreachable", "Using " + EndpointConstants.LOCAL_HOST + ".", FiguraToast.ToastType.WARNING);
             }
         }
 
@@ -174,7 +176,15 @@ public final class UnchainedEndpoint {
         synchronized (UnchainedEndpoint.class) {
             ready = null;
         }
-        startIfNeeded();
+        startIfNeeded().thenRun(UnchainedEndpoint::refreshResources);
+    }
+
+    public static void refreshResources() {
+        try {
+            FiguraRuntimeResources.init();
+        } catch (RuntimeException e) {
+            FiguraMod.LOGGER.warn("Unchained: could not refresh the backend resources: " + e);
+        }
     }
 
     private static synchronized CompletableFuture<Void> startIfNeeded() {

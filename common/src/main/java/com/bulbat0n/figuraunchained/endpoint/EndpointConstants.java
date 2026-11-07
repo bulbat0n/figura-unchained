@@ -8,6 +8,8 @@ public final class EndpointConstants {
     public static final String DEFAULT_VALUE = "default";
     public static final String LOCAL_HOST = "localhost:55000";
 
+    // Raise to the current endpoint.json seq in every release that follows an address move,
+    // so a fresh install cannot be rolled back to an older signed file.
     public static final long MIN_SEQ = 1;
     public static final long MAX_SEQ = 2147483647L;
     public static final int MAX_BODY_BYTES = 4096;

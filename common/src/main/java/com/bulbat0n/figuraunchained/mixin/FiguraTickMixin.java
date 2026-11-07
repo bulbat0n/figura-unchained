@@ -3,6 +3,7 @@ package com.bulbat0n.figuraunchained.mixin;
 import com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint;
 import com.bulbat0n.figuraunchained.gui.ChangeScreen;
 import com.bulbat0n.figuraunchained.gui.ConsentScreen;
+import com.bulbat0n.figuraunchained.gui.UnchainedToast;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.TitleScreen;
 import org.figuramc.figura.FiguraMod;
@@ -15,6 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class FiguraTickMixin {
     @Inject(method = "tick", at = @At("HEAD"), remap = false)
     private static void unchainedConsentWindow(CallbackInfo ci) {
+        UnchainedToast.flush();
         Minecraft minecraft = Minecraft.getInstance();
         if (!(minecraft.screen instanceof TitleScreen)) {
             return;

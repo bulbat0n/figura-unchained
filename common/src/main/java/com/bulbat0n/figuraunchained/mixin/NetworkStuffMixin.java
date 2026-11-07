@@ -16,6 +16,7 @@ import com.neovisionaries.ws.client.WebSocketException;
 import com.neovisionaries.ws.client.WebSocketFrame;
 import org.figuramc.figura.backend2.websocket.S2CMessageHandler;
 
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
@@ -27,6 +28,16 @@ public abstract class NetworkStuffMixin {
     @Shadow(remap = false) private static void fetchMOTD() {}
     @Shadow(remap = false) protected static WebSocket ws;
     @Shadow(remap = false) public static int backendStatus;
+
+    @Inject(method = "getResourcesHashes", at = @At("HEAD"), remap = false)
+    private static void unchainedAwaitHashes(String version, CallbackInfoReturnable<InputStream> cir) {
+        com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint.awaitReady();
+    }
+
+    @Inject(method = "getResource", at = @At("HEAD"), remap = false)
+    private static void unchainedAwaitResource(String version, String resource, CallbackInfoReturnable<InputStream> cir) {
+        com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint.awaitReady();
+    }
 
     @Inject(method = "checkUUID", at = @At("HEAD"), cancellable = true, remap = false)
     private static void unchainedCheckUUID(UUID id, CallbackInfoReturnable<Boolean> cir) {
@@ -41,11 +52,11 @@ public abstract class NetworkStuffMixin {
         new Thread(() -> {
             int vStatus = com.bulbat0n.figuraunchained.auth.UnchainedAuth.checkVersionResolving();
             if (vStatus == 0) {
-                org.figuramc.figura.gui.FiguraToast.sendToast("Connection Error", "Backend is offline or unreachable.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+                com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Connection Error", "Backend is offline or unreachable.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
                 backendStatus = 1;
                 return;
             } else if (vStatus == 1) {
-                org.figuramc.figura.gui.FiguraToast.sendToast("Version Mismatch", "Incompatible Unchained Backend.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+                com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Version Mismatch", "Incompatible Unchained Backend.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
                 backendStatus = 1;
                 return;
             } else if (vStatus == 3 || vStatus == 4) {
@@ -72,11 +83,11 @@ public abstract class NetworkStuffMixin {
         new Thread(() -> {
             int vStatus = com.bulbat0n.figuraunchained.auth.UnchainedAuth.checkVersionResolving();
             if (vStatus == 0) {
-                org.figuramc.figura.gui.FiguraToast.sendToast("Connection Error", "Backend is offline or unreachable.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+                com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Connection Error", "Backend is offline or unreachable.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
                 backendStatus = 1;
                 return;
             } else if (vStatus == 1) {
-                org.figuramc.figura.gui.FiguraToast.sendToast("Version Mismatch", "Incompatible Unchained Backend.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+                com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Version Mismatch", "Incompatible Unchained Backend.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
                 backendStatus = 1;
                 return;
             } else if (vStatus == 3 || vStatus == 4) {
@@ -140,7 +151,7 @@ public abstract class NetworkStuffMixin {
                     String reason = serverCloseFrame.getCloseReason();
                     String min = reason == null ? "" : reason.replaceAll("[^0-9A-Za-z.+_\\-]", "");
                     String message = "Minimum version for your backend is " + min;
-                    org.figuramc.figura.gui.FiguraToast.sendToast("Please update Figura Unchained", message, org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+                    com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Please update Figura Unchained", message, org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
                     NetworkStuff.disconnect("Please update Figura Unchained\n" + message);
                 }
             });
