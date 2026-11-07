@@ -8,6 +8,8 @@ import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.commands.CommandBuildContext;
 import com.bulbat0n.figuraunchained.auth.UnchainedAuth;
 import com.bulbat0n.figuraunchained.gui.ConsentScreen;
+import com.bulbat0n.figuraunchained.report.ReportTargets;
+import net.minecraft.commands.SharedSuggestionProvider;
 import org.figuramc.figura.gui.FiguraToast;
 
 public class AuthCommand implements ClientCommandRegistrationCallback {
@@ -35,6 +37,17 @@ public class AuthCommand implements ClientCommandRegistrationCallback {
                         UnchainedAuth.performAuth("login", password);
                         return 1;
                     })
+                )
+            )
+            .then(ClientCommandManager.literal("report")
+                .then(ClientCommandManager.argument("player", StringArgumentType.word())
+                    .suggests((context, builder) -> SharedSuggestionProvider.suggest(ReportTargets.withAvatars(), builder))
+                    .then(ClientCommandManager.argument("reason", StringArgumentType.greedyString())
+                        .executes(context -> {
+                            UnchainedAuth.performReport(StringArgumentType.getString(context, "player"), StringArgumentType.getString(context, "reason"));
+                            return 1;
+                        })
+                    )
                 )
             )
             .then(ClientCommandManager.literal("consent")

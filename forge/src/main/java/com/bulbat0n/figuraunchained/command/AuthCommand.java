@@ -6,6 +6,8 @@ import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import com.bulbat0n.figuraunchained.auth.UnchainedAuth;
 import com.bulbat0n.figuraunchained.gui.ConsentScreen;
+import com.bulbat0n.figuraunchained.report.ReportTargets;
+import net.minecraft.commands.SharedSuggestionProvider;
 import org.figuramc.figura.gui.FiguraToast;
 
 public class AuthCommand {
@@ -32,6 +34,17 @@ public class AuthCommand {
                         UnchainedAuth.performAuth("login", password);
                         return 1;
                     })
+                )
+            )
+            .then(Commands.literal("report")
+                .then(Commands.argument("player", StringArgumentType.word())
+                    .suggests((context, builder) -> SharedSuggestionProvider.suggest(ReportTargets.withAvatars(), builder))
+                    .then(Commands.argument("reason", StringArgumentType.greedyString())
+                        .executes(context -> {
+                            UnchainedAuth.performReport(StringArgumentType.getString(context, "player"), StringArgumentType.getString(context, "reason"));
+                            return 1;
+                        })
+                    )
                 )
             )
             .then(Commands.literal("consent")

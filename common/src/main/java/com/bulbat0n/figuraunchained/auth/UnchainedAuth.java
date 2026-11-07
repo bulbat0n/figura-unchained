@@ -6,6 +6,7 @@ import com.bulbat0n.figuraunchained.endpoint.EndpointVerifier;
 import com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint;
 import com.bulbat0n.figuraunchained.gui.ConsentScreen;
 import com.bulbat0n.figuraunchained.gui.UnchainedToast;
+import com.bulbat0n.figuraunchained.report.ReportTargets;
 import com.bulbat0n.figuraunchained.mixin.HttpAPIAccessor;
 
 import javax.crypto.SecretKeyFactory;
@@ -267,24 +268,73 @@ public class UnchainedAuth {
         return status;
     }
 
+    private static boolean ensureBackendReady() {
+        int vStatus = checkVersionResolving();
+        if (vStatus == 2) {
+            return true;
+        }
+        if (vStatus == 0) {
+            UnchainedToast.send("Connection Error", "Backend is offline or unreachable.", FiguraToast.ToastType.ERROR);
+        } else if (vStatus == 1) {
+            UnchainedToast.send("Version Mismatch", "Incompatible Unchained Backend.", FiguraToast.ToastType.ERROR);
+        } else if (vStatus == 5) {
+            UnchainedToast.send("Server identity", "Identity check failed.", FiguraToast.ToastType.ERROR);
+        } else if (vStatus == 3) {
+            UnchainedToast.send("Connection blocked", "Approve the new address first.", FiguraToast.ToastType.ERROR);
+        } else if (vStatus == 4) {
+            UnchainedToast.send("Answer required", "Choose Yes or No.", FiguraToast.ToastType.ERROR);
+            ConsentScreen.openLater();
+        }
+        return false;
+    }
+
+    public static void performReport(String target, String reason) {
+        String cleaned = ReportTargets.cleanReason(reason);
+        if (cleaned == null) {
+            UnchainedToast.send("Report", "The reason must be 1-" + ReportTargets.REASON_MAX + " characters.", FiguraToast.ToastType.ERROR);
+            return;
+        }
+        Thread worker = new Thread(() -> {
+            if (!ensureBackendReady()) {
+                return;
+            }
+            if (JWT == null || JWT.isEmpty()) {
+                UnchainedToast.send("Report", "Log in first with /figura-unchained login.", FiguraToast.ToastType.ERROR);
+                return;
+            }
+            try {
+                JsonObject payload = new JsonObject();
+                payload.addProperty("target", target);
+                payload.addProperty("reason", cleaned);
+                HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
+                        .uri(URI.create(getBaseUrl() + "/api/report"))
+                        .timeout(REQUEST_TIMEOUT)
+                        .header("Content-Type", "application/json")
+                        .header("token", getLocalUuid() + ":" + JWT)
+                        .POST(HttpRequest.BodyPublishers.ofString(payload.toString()));
+                applyClientHeaders(requestBuilder::header);
+                HttpResponse<String> response = CLIENT.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() == 200) {
+                    UnchainedToast.send("Report sent", "Thank you, a moderator will review it.", FiguraToast.ToastType.DEFAULT);
+                    return;
+                }
+                String errorMsg = stringField(parseObject(response.body()), "error");
+                if (errorMsg == null) {
+                    errorMsg = "Request failed.";
+                }
+                UnchainedToast.send("Report failed", response.statusCode() + ": " + errorMsg, FiguraToast.ToastType.ERROR);
+            } catch (Exception e) {
+                String errMsg = e.getMessage();
+                UnchainedToast.send("Report failed", errMsg == null ? "Backend is offline or unreachable." : errMsg, FiguraToast.ToastType.ERROR);
+            }
+        }, "figura-unchained-report");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
     public static void performAuth(String action, String password) {
         Thread worker = new Thread(() -> {
-            int vStatus = checkVersionResolving();
-            if (vStatus == 0) {
-                UnchainedToast.send("Connection Error", "Backend is offline or unreachable.", FiguraToast.ToastType.ERROR);
-                return;
-            } else if (vStatus == 1) {
-                UnchainedToast.send("Version Mismatch", "Incompatible Unchained Backend.", FiguraToast.ToastType.ERROR);
-                return;
-            } else if (vStatus == 5) {
-                UnchainedToast.send("Server identity", "Identity check failed.", FiguraToast.ToastType.ERROR);
-                return;
-            } else if (vStatus == 3) {
-                UnchainedToast.send("Connection blocked", "Approve the new address first.", FiguraToast.ToastType.ERROR);
-                return;
-            } else if (vStatus == 4) {
-                UnchainedToast.send("Answer required", "Choose Yes or No.", FiguraToast.ToastType.ERROR);
-                ConsentScreen.openLater();
+            if (!ensureBackendReady()) {
                 return;
             }
             try {
