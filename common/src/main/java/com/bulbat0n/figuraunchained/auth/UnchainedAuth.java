@@ -2,6 +2,11 @@ package com.bulbat0n.figuraunchained.auth;
 
 import net.minecraft.client.Minecraft;
 import org.figuramc.figura.gui.FiguraToast;
+import com.bulbat0n.figuraunchained.endpoint.EndpointVerifier;
+import com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint;
+import com.bulbat0n.figuraunchained.gui.ConsentScreen;
+import com.bulbat0n.figuraunchained.gui.UnchainedToast;
+import com.bulbat0n.figuraunchained.report.ReportTargets;
 import com.bulbat0n.figuraunchained.mixin.HttpAPIAccessor;
 
 import javax.crypto.SecretKeyFactory;
@@ -12,10 +17,19 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.nio.charset.StandardCharsets;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLEncoder;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.security.SecureRandom;
+import java.util.HexFormat;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.function.BiConsumer;
@@ -144,6 +158,7 @@ public class UnchainedAuth {
     
     private static final HttpClient CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
+            .followRedirects(HttpClient.Redirect.NEVER)
             .build();
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
 
@@ -161,33 +176,165 @@ public class UnchainedAuth {
         return url;
     }
 
+    private static JsonObject parseObject(String text) {
+        try {
+            JsonElement element = JsonParser.parseString(text);
+            return element.isJsonObject() ? element.getAsJsonObject() : null;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static String stringField(JsonObject json, String key) {
+        if (json == null || !json.has(key) || !json.get(key).isJsonPrimitive()) {
+            return null;
+        }
+        return json.get(key).getAsString();
+    }
+
+    private static void writeToken(File file, String token) throws IOException {
+        Path path = file.toPath();
+        if (!Files.exists(path)) {
+            Files.createFile(path);
+        }
+        try {
+            Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-------"));
+        } catch (UnsupportedOperationException | IOException ignored) {
+        }
+        Files.writeString(path, token);
+    }
+
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    private static String newNonce() {
+        byte[] bytes = new byte[32];
+        RANDOM.nextBytes(bytes);
+        return HexFormat.of().formatHex(bytes);
+    }
+
     public static int checkVersion() {
         try {
+            String expected = UnchainedEndpoint.expectedIdentity();
+            String nonce = newNonce();
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(getBaseUrl() + "/api/version"))
+                    .uri(URI.create(getBaseUrl() + "/api/version?nonce=" + nonce))
                     .timeout(REQUEST_TIMEOUT)
                     .GET()
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
-                String body = response.body().replaceAll("\\s+", "");
-                if (body.contains("\"unchained_api\":1")) {
-                    return 2;
+                JsonObject json = parseObject(response.body());
+                boolean compatible = false;
+                if (json != null && json.has("unchained_api") && json.get("unchained_api").isJsonPrimitive()) {
+                    try {
+                        compatible = json.get("unchained_api").getAsInt() == 1;
+                    } catch (NumberFormatException ignored) {
+                    }
                 }
-                return 1;
+                if (!compatible) {
+                    return 1;
+                }
+                if (expected != null) {
+                    if (!EndpointVerifier.verifyIdentity(expected, nonce, stringField(json, "sig"))) {
+                        return 5;
+                    }
+                    UnchainedEndpoint.markVerified();
+                }
+                return 2;
             }
             return 0;
         } catch (Exception e) {}
         return 0;
     }
+
+    public static int checkVersionResolving() {
+        UnchainedEndpoint.awaitReady();
+        if (UnchainedEndpoint.isUndecided()) {
+            return 4;
+        }
+        if (UnchainedEndpoint.isBlocked()) {
+            return 3;
+        }
+        int status = checkVersion();
+        if (status == 0) {
+            boolean changed = UnchainedEndpoint.retryAfterFailure();
+            if (UnchainedEndpoint.isBlocked()) {
+                return 3;
+            }
+            if (changed) {
+                status = checkVersion();
+            }
+        }
+        return status;
+    }
+
+    private static boolean ensureBackendReady() {
+        int vStatus = checkVersionResolving();
+        if (vStatus == 2) {
+            return true;
+        }
+        if (vStatus == 0) {
+            UnchainedToast.send("Connection Error", "Backend is offline or unreachable.", FiguraToast.ToastType.ERROR);
+        } else if (vStatus == 1) {
+            UnchainedToast.send("Version Mismatch", "Incompatible Unchained Backend.", FiguraToast.ToastType.ERROR);
+        } else if (vStatus == 5) {
+            UnchainedToast.send("Server identity", "Identity check failed.", FiguraToast.ToastType.ERROR);
+        } else if (vStatus == 3) {
+            UnchainedToast.send("Connection blocked", "Approve the new address first.", FiguraToast.ToastType.ERROR);
+        } else if (vStatus == 4) {
+            UnchainedToast.send("Answer required", "Choose Yes or No.", FiguraToast.ToastType.ERROR);
+            ConsentScreen.openLater();
+        }
+        return false;
+    }
+
+    public static void performReport(String target, String reason) {
+        String cleaned = ReportTargets.cleanReason(reason);
+        if (cleaned == null) {
+            UnchainedToast.send("Report", "The reason must be 1-" + ReportTargets.REASON_MAX + " characters.", FiguraToast.ToastType.ERROR);
+            return;
+        }
+        Thread worker = new Thread(() -> {
+            if (!ensureBackendReady()) {
+                return;
+            }
+            if (JWT == null || JWT.isEmpty()) {
+                UnchainedToast.send("Report", "Log in first with /figura-unchained login.", FiguraToast.ToastType.ERROR);
+                return;
+            }
+            try {
+                JsonObject payload = new JsonObject();
+                payload.addProperty("target", target);
+                payload.addProperty("reason", cleaned);
+                HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
+                        .uri(URI.create(getBaseUrl() + "/api/report"))
+                        .timeout(REQUEST_TIMEOUT)
+                        .header("Content-Type", "application/json")
+                        .header("token", getLocalUuid() + ":" + JWT)
+                        .POST(HttpRequest.BodyPublishers.ofString(payload.toString()));
+                applyClientHeaders(requestBuilder::header);
+                HttpResponse<String> response = CLIENT.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() == 200) {
+                    UnchainedToast.send("Report sent", "Thank you, a moderator will review it.", FiguraToast.ToastType.DEFAULT);
+                    return;
+                }
+                String errorMsg = stringField(parseObject(response.body()), "error");
+                if (errorMsg == null) {
+                    errorMsg = "Request failed.";
+                }
+                UnchainedToast.send("Report failed", response.statusCode() + ": " + errorMsg, FiguraToast.ToastType.ERROR);
+            } catch (Exception e) {
+                String errMsg = e.getMessage();
+                UnchainedToast.send("Report failed", errMsg == null ? "Backend is offline or unreachable." : errMsg, FiguraToast.ToastType.ERROR);
+            }
+        }, "figura-unchained-report");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
     public static void performAuth(String action, String password) {
         Thread worker = new Thread(() -> {
-            int vStatus = checkVersion();
-            if (vStatus == 0) {
-                FiguraToast.sendToast("Connection Error", "Backend is offline or unreachable.", FiguraToast.ToastType.ERROR);
-                return;
-            } else if (vStatus == 1) {
-                FiguraToast.sendToast("Version Mismatch", "Incompatible Unchained Backend.", FiguraToast.ToastType.ERROR);
+            if (!ensureBackendReady()) {
                 return;
             }
             try {
@@ -209,7 +356,12 @@ public class UnchainedAuth {
                 String body = response.body();
                 
                 if (response.statusCode() == 200) {
-                    String token = body.split("\"token\"\\s*:\\s*\"")[1].split("\"")[0];
+                    JsonObject reply = parseObject(body);
+                    String token = stringField(reply, "token");
+                    if (token == null || token.isEmpty()) {
+                        UnchainedToast.send("Auth Failed", "Malformed server response.", FiguraToast.ToastType.ERROR);
+                        return;
+                    }
                     JWT = token;
                     
                     File dir = new File(Minecraft.getInstance().gameDirectory, "config/figura-unchained");
@@ -217,35 +369,29 @@ public class UnchainedAuth {
                         dir.mkdirs();
                     }
                     TOKEN_FILE = new File(dir, uuid + ".txt");
-                    Files.writeString(TOKEN_FILE.toPath(), token);
+                    writeToken(TOKEN_FILE, token);
                     
-                    String toastTitle = "Auth";
-                    String toastDesc = "Success";
-                    if (body.contains("\"title\"")) {
-                        try { toastTitle = body.split("\"title\"\\s*:\\s*\"")[1].split("\"")[0]; } catch (Exception ignore) {}
-                    }
-                    if (body.contains("\"message\"")) {
-                        try { toastDesc = body.split("\"message\"\\s*:\\s*\"")[1].split("\"")[0]; } catch (Exception ignore) {}
-                    }
+                    String toastTitle = stringField(reply, "title");
+                    String toastDesc = stringField(reply, "message");
+                    if (toastTitle == null) toastTitle = "Auth";
+                    if (toastDesc == null) toastDesc = "Success";
                     
-                    FiguraToast.sendToast(toastTitle, toastDesc, action.equals("register") ? FiguraToast.ToastType.WARNING : FiguraToast.ToastType.DEFAULT);
+                    UnchainedToast.send(toastTitle, toastDesc, action.equals("register") ? FiguraToast.ToastType.WARNING : FiguraToast.ToastType.DEFAULT);
                     
                     org.figuramc.figura.backend2.NetworkStuff.reAuth();
                 } else {
-                    String errorMsg = body;
-                    if (body.contains("\"error\"")) {
-                        try {
-                            errorMsg = body.split("\"error\"\\s*:\\s*\"")[1].split("\"")[0];
-                        } catch (Exception ignore) {}
+                    String errorMsg = stringField(parseObject(body), "error");
+                    if (errorMsg == null) {
+                        errorMsg = body.length() > 100 ? body.substring(0, 100) : body;
                     }
-                    FiguraToast.sendToast("Auth Failed", response.statusCode() + ": " + errorMsg, FiguraToast.ToastType.ERROR);
+                    UnchainedToast.send("Auth Failed", response.statusCode() + ": " + errorMsg, FiguraToast.ToastType.ERROR);
                 }
             } catch (Exception e) {
                 String errMsg = e.getMessage();
                 if (errMsg == null) {
                     errMsg = "Backend is offline or unreachable.";
                 }
-                FiguraToast.sendToast("Auth Error", errMsg, FiguraToast.ToastType.ERROR);
+                UnchainedToast.send("Auth Error", errMsg, FiguraToast.ToastType.ERROR);
             }
         }, "figura-unchained-auth");
         worker.setDaemon(true);
