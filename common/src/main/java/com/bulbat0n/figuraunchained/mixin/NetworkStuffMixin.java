@@ -155,11 +155,16 @@ public abstract class NetworkStuffMixin {
 
                 @Override
                 public void onDisconnected(WebSocket websocket, WebSocketFrame serverCloseFrame, WebSocketFrame clientCloseFrame, boolean closedByServer) throws Exception {
-                    if (serverCloseFrame == null || serverCloseFrame.getCloseCode() != 4100) return;
+                    if (serverCloseFrame == null) return;
+                    int code = serverCloseFrame.getCloseCode();
+                    if (code > 4100 && code < 4200) {
+                        NetworkStuff.disconnect(com.bulbat0n.figuraunchained.auth.UnchainedAuth.closeReasonText(serverCloseFrame.getCloseReason()));
+                        return;
+                    }
+                    if (code != 4100) return;
                     String reason = serverCloseFrame.getCloseReason();
                     String min = reason == null ? "" : reason.replaceAll("[^0-9A-Za-z.+_\\-]", "");
                     String message = "Minimum version for your backend is " + min;
-                    com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Please update Figura Unchained", message, org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
                     NetworkStuff.disconnect("Please update Figura Unchained\n" + message);
                 }
             });

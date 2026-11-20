@@ -12,8 +12,6 @@ import java.util.TreeSet;
 import java.util.UUID;
 
 public final class ReportTargets {
-    public static final int REASON_MAX = 200;
-
     private ReportTargets() {
     }
 
@@ -35,21 +33,5 @@ public final class ReportTargets {
             }
         }
         return new ArrayList<>(names);
-    }
-
-    public static String cleanReason(String reason) {
-        if (reason == null) {
-            return null;
-        }
-        String trimmed = reason.trim();
-        if (trimmed.isEmpty() || trimmed.codePointCount(0, trimmed.length()) > REASON_MAX) {
-            return null;
-        }
-        for (int i = 0; i < trimmed.length(); i++) {
-            if (Character.isISOControl(trimmed.charAt(i))) {
-                return null;
-            }
-        }
-        return trimmed;
     }
 }
