@@ -1,6 +1,7 @@
 package com.bulbat0n.figuraunchained.gui;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import org.figuramc.figura.gui.FiguraToast;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -11,6 +12,7 @@ public final class UnchainedToast {
 
     private static final ConcurrentLinkedQueue<Entry> QUEUE = new ConcurrentLinkedQueue<>();
     private static final int MAX_QUEUED = 16;
+    private static final int MAX_SERVER_TEXT = 100;
 
     private UnchainedToast() {
     }
@@ -19,6 +21,28 @@ public final class UnchainedToast {
         if (QUEUE.size() < MAX_QUEUED) {
             QUEUE.add(new Entry(title, message, type));
         }
+    }
+
+    public static void sendServer(String title, String message, FiguraToast.ToastType type) {
+        send(Component.literal(cleanServerText(title)), Component.literal(cleanServerText(message)), type);
+    }
+
+    public static String cleanServerText(String text) {
+        if (text == null) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < text.length() && out.length() < MAX_SERVER_TEXT; i++) {
+            char c = text.charAt(i);
+            if (c == '\u00A7') {
+                i++;
+            } else if (Character.isISOControl(c)) {
+                out.append(' ');
+            } else {
+                out.append(c);
+            }
+        }
+        return out.toString().trim();
     }
 
     public static void flush() {
