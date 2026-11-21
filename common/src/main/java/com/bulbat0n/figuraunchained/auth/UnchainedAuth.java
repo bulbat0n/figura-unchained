@@ -283,6 +283,16 @@ public class UnchainedAuth {
         return 0;
     }
 
+    private static final java.util.concurrent.atomic.AtomicInteger CONNECT_ATTEMPT = new java.util.concurrent.atomic.AtomicInteger();
+
+    public static int beginConnectAttempt() {
+        return CONNECT_ATTEMPT.incrementAndGet();
+    }
+
+    public static boolean isCurrentAttempt(int attempt) {
+        return CONNECT_ATTEMPT.get() == attempt;
+    }
+
     public static int checkVersionResolving() {
         UnchainedEndpoint.awaitReady();
         if (UnchainedEndpoint.isUndecided()) {

@@ -2,6 +2,7 @@ package com.bulbat0n.figuraunchained.mixin;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -49,32 +50,7 @@ public abstract class NetworkStuffMixin {
         authCheck = 6000;
         com.bulbat0n.figuraunchained.auth.UnchainedAuth.init();
         
-        new Thread(() -> {
-            int vStatus = com.bulbat0n.figuraunchained.auth.UnchainedAuth.checkVersionResolving();
-            if (vStatus == 0) {
-                com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Connection Error", "Backend is offline or unreachable.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
-                backendStatus = 1;
-                return;
-            } else if (vStatus == 1) {
-                com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Version Mismatch", "Incompatible Unchained Backend.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
-                backendStatus = 1;
-                return;
-            } else if (vStatus == 5) {
-                com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Server identity", "Identity check failed.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
-                backendStatus = 1;
-                return;
-            } else if (vStatus == 3 || vStatus == 4) {
-                backendStatus = 1;
-                com.bulbat0n.figuraunchained.gui.ConsentScreen.hintIfNeeded();
-                return;
-            }
-            String tokenPayload = com.bulbat0n.figuraunchained.auth.UnchainedAuth.getLocalUuid();
-            if (com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT != null && !com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT.isEmpty()) {
-                tokenPayload += ":" + com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT;
-            }
-            authSuccess(tokenPayload);
-            fetchMOTD();
-        }).start();
+        new Thread(() -> unchainedConnect()).start();
         
         ci.cancel(); 
     }
@@ -84,32 +60,7 @@ public abstract class NetworkStuffMixin {
         authCheck = 6000;
         com.bulbat0n.figuraunchained.auth.UnchainedAuth.init();
         
-        new Thread(() -> {
-            int vStatus = com.bulbat0n.figuraunchained.auth.UnchainedAuth.checkVersionResolving();
-            if (vStatus == 0) {
-                com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Connection Error", "Backend is offline or unreachable.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
-                backendStatus = 1;
-                return;
-            } else if (vStatus == 1) {
-                com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Version Mismatch", "Incompatible Unchained Backend.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
-                backendStatus = 1;
-                return;
-            } else if (vStatus == 5) {
-                com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Server identity", "Identity check failed.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
-                backendStatus = 1;
-                return;
-            } else if (vStatus == 3 || vStatus == 4) {
-                backendStatus = 1;
-                com.bulbat0n.figuraunchained.gui.ConsentScreen.hintIfNeeded();
-                return;
-            }
-            String tokenPayload = com.bulbat0n.figuraunchained.auth.UnchainedAuth.getLocalUuid();
-            if (com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT != null && !com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT.isEmpty()) {
-                tokenPayload += ":" + com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT;
-            }
-            authSuccess(tokenPayload);
-            fetchMOTD();
-        }).start();
+        new Thread(() -> unchainedConnect()).start();
         
         ci.cancel();
     }
@@ -172,8 +123,40 @@ public abstract class NetworkStuffMixin {
             ws.connectAsynchronously();
         } catch (Exception e) {
             FiguraMod.LOGGER.error("WebSocket connection error: " + e.getMessage());
-            backendStatus = 1;
+            NetworkStuff.disconnect("Could not connect to the backend");
         }
         ci.cancel(); 
+    }
+
+    @Unique
+    private static void unchainedConnect() {
+        int attempt = com.bulbat0n.figuraunchained.auth.UnchainedAuth.beginConnectAttempt();
+        int vStatus = com.bulbat0n.figuraunchained.auth.UnchainedAuth.checkVersionResolving();
+        if (!com.bulbat0n.figuraunchained.auth.UnchainedAuth.isCurrentAttempt(attempt)) {
+            return;
+        }
+        if (vStatus == 0) {
+            com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Connection Error", "Backend is offline or unreachable.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+            NetworkStuff.disconnect(com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint.offlineReason());
+            return;
+        } else if (vStatus == 1) {
+            com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Version Mismatch", "Incompatible Unchained Backend.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+            NetworkStuff.disconnect(null);
+            return;
+        } else if (vStatus == 5) {
+            com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Server identity", "Identity check failed.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+            NetworkStuff.disconnect(null);
+            return;
+        } else if (vStatus == 3 || vStatus == 4) {
+            NetworkStuff.disconnect(com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint.offlineReason());
+            com.bulbat0n.figuraunchained.gui.ConsentScreen.hintIfNeeded();
+            return;
+        }
+        String tokenPayload = com.bulbat0n.figuraunchained.auth.UnchainedAuth.getLocalUuid();
+        if (com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT != null && !com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT.isEmpty()) {
+            tokenPayload += ":" + com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT;
+        }
+        authSuccess(tokenPayload);
+        fetchMOTD();
     }
 }
