@@ -18,12 +18,12 @@ jobs:
 
       - uses: gradle/actions/wrapper-validation@8da46b539cd8fe6ab27ca75128919a18d757604c
 
-      - name: Install OpenJDK 21
+      - name: Install OpenJDK 25
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends openjdk-21-jdk-headless
-          echo "JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64" >> "$GITHUB_ENV"
-          echo "/usr/lib/jvm/java-21-openjdk-amd64/bin" >> "$GITHUB_PATH"
+          sudo apt-get install -y --no-install-recommends openjdk-25-jdk-headless
+          echo "JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64" >> "$GITHUB_ENV"
+          echo "/usr/lib/jvm/java-25-openjdk-amd64/bin" >> "$GITHUB_PATH"
 
       - name: Toolchain
         run: |
@@ -42,7 +42,7 @@ jobs:
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: figura-unchained-1.21.10
+          name: figura-unchained-26.2
           path: |
             SHA256SUMS
             fabric/build/libs/figura-unchained-*.jar

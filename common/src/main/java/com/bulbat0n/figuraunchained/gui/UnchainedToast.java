@@ -50,7 +50,7 @@ public final class UnchainedToast {
             return;
         }
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.getOverlay() != null || minecraft.font == null) {
+        if (minecraft.gui.overlay() != null || minecraft.font == null) {
             return;
         }
         Entry entry;

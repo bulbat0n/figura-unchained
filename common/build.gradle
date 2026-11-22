@@ -1,9 +1,19 @@
+def figuraJar = file("../libs/nofigura-${project.nofigura_version}+${project.minecraft_version}-fabric-mc.jar")
+
 architectury {
     common("fabric")
 }
 
 dependencies {
-    modImplementation "net.fabricmc:fabric-loader:${project.fabric_loader_version}"
-    modCompileOnly files("../libs/figura-${project.figura_version}+${project.minecraft_version}-fabric-mc.jar")
+    implementation "net.fabricmc:fabric-loader:${project.fabric_loader_version}"
+    compileOnly files(figuraJar)
     implementation "com.neovisionaries:nv-websocket-client:2.14"
+}
+
+tasks.named("compileJava") {
+    doFirst {
+        if (!figuraJar.isFile()) {
+            throw new GradleException("Missing ${figuraJar}, run: bash scripts/fetch-figura.sh")
+        }
+    }
 }

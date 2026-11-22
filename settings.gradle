@@ -7,6 +7,10 @@ pluginManagement {
     }
 }
 
+if (JavaVersion.current().majorVersion != "25") {
+    throw new GradleException("Run Gradle on JDK 25 so the jars match the CI build, not on Java ${JavaVersion.current().majorVersion} from ${System.getProperty('java.home')}. For example: JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64 ./gradlew build")
+}
+
 rootProject.name = "figura-unchained"
 include("common")
 include("fabric")

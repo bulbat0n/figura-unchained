@@ -18,16 +18,16 @@ public class FiguraTickMixin {
     private static void unchainedConsentWindow(CallbackInfo ci) {
         UnchainedToast.flush();
         Minecraft minecraft = Minecraft.getInstance();
-        if (!(minecraft.screen instanceof TitleScreen)) {
+        if (!(minecraft.gui.screen() instanceof TitleScreen)) {
             return;
         }
         if (ConsentScreen.needsWindow()) {
-            minecraft.setScreen(new ConsentScreen(minecraft.screen));
+            minecraft.gui.setScreen(new ConsentScreen(minecraft.gui.screen()));
             return;
         }
         UnchainedEndpoint.ensureStarted();
         if (UnchainedEndpoint.pending() != null && UnchainedEndpoint.isSettled()) {
-            minecraft.setScreen(new ChangeScreen(minecraft.screen));
+            minecraft.gui.setScreen(new ChangeScreen(minecraft.gui.screen()));
         }
     }
 }
