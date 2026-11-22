@@ -3,6 +3,11 @@ architectury {
     fabric()
 }
 
+base {
+    archivesName = "figura-unchained"
+}
+version = "${project.mod_version}+mc${project.fabric_minecraft_label}+fabric+figura${project.figura_version}"
+
 dependencies {
     modImplementation "net.fabricmc:fabric-loader:${project.fabric_loader_version}"
     modApi "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
@@ -29,8 +34,3 @@ tasks.withType(Jar).configureEach {
     from project(":common").sourceSets.main.output
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
-
-base {
-    archivesName = "figura-unchained"
-}
-version = "${project.mod_version}+mc${project.fabric_minecraft_label}+fabric+figura${project.figura_version}"
