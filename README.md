@@ -6,7 +6,7 @@ Figura Unchained connects the original Figura mod to a compatible custom backend
 
 **Installation**
 1. Download this addon ([Modrinth](https://modrinth.com/mod/figura-unchained)).
-2. Install Figura 0.1.6 for 1.21.10 from the [official GitHub](https://github.com/FiguraMC/Figura/tree/1.21.10): build it with `./gradlew :fabric:build`, or run `scripts/fetch-figura.sh` from this repository and take the jar from `libs/`.
+2. Install Figura 0.1.6 for 1.21.11 from the [official GitHub](https://github.com/FiguraMC/Figura/tree/1.21.11): build it with `./gradlew :fabric:build`, or run `scripts/fetch-figura.sh` from this repository and take the jar from `libs/`.
 3. Launch Minecraft. On the title screen the addon asks two questions, and it makes no network connection until you answer the first one:
    1. **May it download a small signed file from GitHub?** The file tells the addon where the public server is.
    2. **May it connect to the address from that file?** The address is shown to you in the second window.
@@ -27,10 +27,10 @@ If you have any issues, you can contact me
 ## 📦 Requirements & Dependencies
 
 This mod is an addon and requires the following to work:
-* **Minecraft:** 1.21.10
+* **Minecraft:** 1.21.11
 * **Fabric Loader:** >=0.19.5
 * **Java:** 21
-* **Compatible Figura:** 0.1.6 for 1.21.10 from the [official GitHub](https://github.com/FiguraMC/Figura/tree/1.21.10)
+* **Compatible Figura:** 0.1.6 for 1.21.11 from the [official GitHub](https://github.com/FiguraMC/Figura/tree/1.21.11)
 
 ---
 
@@ -103,7 +103,7 @@ bash scripts/fetch-figura.sh
 ./gradlew build
 ```
 
-`scripts/fetch-figura.sh` builds Figura 0.1.6 for 1.21.10 from a pinned commit of the [official repository](https://github.com/FiguraMC/Figura/tree/1.21.10) into `libs/` (it does nothing if the jar is already there). The addon jar ends up in `fabric/build/libs/`.
+`scripts/fetch-figura.sh` builds Figura 0.1.6 for 1.21.11 from a pinned commit of the [official repository](https://github.com/FiguraMC/Figura/tree/1.21.11) into `libs/` (it does nothing if the jar is already there). The addon jar ends up in `fabric/build/libs/`.
 
 The build is reproducible: the Gradle wrapper and its distribution are pinned by SHA-256, the Gradle plugins by exact version, and jar timestamps, file order and permissions are fixed. The GitHub Actions workflow runs the same commands on Ubuntu 24.04 and prints the SHA-256 of every jar, so a local build with the same JDK gives the same hashes.
 

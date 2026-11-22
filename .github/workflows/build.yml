@@ -42,7 +42,7 @@ jobs:
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: figura-unchained-1.21.10
+          name: figura-unchained-1.21.11
           path: |
             SHA256SUMS
             fabric/build/libs/figura-unchained-*.jar
