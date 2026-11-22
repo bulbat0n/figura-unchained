@@ -145,6 +145,26 @@ public final class UnchainedEndpoint {
         }
     }
 
+    public static String offlineReason() {
+        ConsentState state = store().get();
+        if (state.decision == ConsentState.Decision.UNDECIDED) {
+            return "Choose a server:\n/figura-unchained consent";
+        }
+        if (!isDefaultValue(Configs.SERVER_IP.value)) {
+            return null;
+        }
+        if (state.decision == ConsentState.Decision.NO) {
+            return "Nothing runs on " + EndpointConstants.LOCAL_HOST + ".\nPublic server: /figura-unchained consent";
+        }
+        if (state.pending != null) {
+            return "Approve the server address:\n/figura-unchained consent";
+        }
+        if (state.approvedIp == null) {
+            return "Could not get the server address.\nCheck your internet, GitHub may be blocked.";
+        }
+        return "The public server is not responding.\nIt may be down, or check your internet connection.";
+    }
+
     public static boolean isUndecided() {
         return store().get().decision == ConsentState.Decision.UNDECIDED;
     }
