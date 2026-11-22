@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "figura_unchained",
+  "version": "${version}",
+  "name": "Figura Unchained",
+  "description": "Freedom for non-premium players.",
+  "authors": [
+    "bulbat0n"
+  ],
+  "contact": {
+    "homepage": "https://github.com/bulbat0n/figura-unchained",
+    "issues": "https://github.com/bulbat0n/figura-unchained/issues"
+  },
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "icon": "assets/figura_unchained/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.bulbat0n.figuraunchained.fabric.FiguraUnchainedFabricClient"
+    ]
+  },
+  "mixins": [
+    "figuraunchained.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "1.21.10",
+    "java": ">=21",
+    "figura": ">=0.1.6 <0.1.7"
+  },
+  "custom": {
+    "modmenu": {
+      "links": {
+        "Modrinth":  "https://modrinth.com/mod/figura-unchained",
+        "GitHub":  "https://github.com/bulbat0n/figura-unchained"
+      }
+    }
+  }
+}

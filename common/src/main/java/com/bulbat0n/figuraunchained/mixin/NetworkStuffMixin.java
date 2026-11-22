@@ -1,0 +1,162 @@
+package com.bulbat0n.figuraunchained.mixin;
+
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.figuramc.figura.backend2.NetworkStuff;
+import org.figuramc.figura.FiguraMod;
+
+import com.neovisionaries.ws.client.WebSocket;
+import com.neovisionaries.ws.client.WebSocketFactory;
+import com.neovisionaries.ws.client.WebSocketAdapter;
+import com.neovisionaries.ws.client.WebSocketException;
+import com.neovisionaries.ws.client.WebSocketFrame;
+import org.figuramc.figura.backend2.websocket.S2CMessageHandler;
+
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.util.UUID;
+
+@Mixin(NetworkStuff.class)
+public abstract class NetworkStuffMixin {
+
+    @Shadow(remap = false) private static int authCheck;
+    @Shadow(remap = false) protected static void authSuccess(String token) {}
+    @Shadow(remap = false) private static void fetchMOTD() {}
+    @Shadow(remap = false) protected static WebSocket ws;
+    @Shadow(remap = false) public static int backendStatus;
+
+    @Inject(method = "getResourcesHashes", at = @At("HEAD"), remap = false)
+    private static void unchainedAwaitHashes(String version, CallbackInfoReturnable<InputStream> cir) {
+        com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint.requireIdentity();
+    }
+
+    @Inject(method = "getResource", at = @At("HEAD"), remap = false)
+    private static void unchainedAwaitResource(String version, String resource, CallbackInfoReturnable<InputStream> cir) {
+        com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint.requireIdentity();
+    }
+
+    @Inject(method = "checkUUID", at = @At("HEAD"), cancellable = true, remap = false)
+    private static void unchainedCheckUUID(UUID id, CallbackInfoReturnable<Boolean> cir) {
+        cir.setReturnValue(false); 
+    }
+
+    @Inject(method = "auth", at = @At("HEAD"), cancellable = true, remap = false)
+    private static void unchainedAuth(CallbackInfo ci) {
+        authCheck = 6000;
+        com.bulbat0n.figuraunchained.auth.UnchainedAuth.init();
+        
+        new Thread(() -> unchainedConnect()).start();
+        
+        ci.cancel(); 
+    }
+
+    @Inject(method = "reAuth", at = @At("HEAD"), cancellable = true, remap = false)
+    private static void unchainedReAuth(CallbackInfo ci) {
+        authCheck = 6000;
+        com.bulbat0n.figuraunchained.auth.UnchainedAuth.init();
+        
+        new Thread(() -> unchainedConnect()).start();
+        
+        ci.cancel();
+    }
+
+    @Inject(method = "connectWS", at = @At("HEAD"), cancellable = true, remap = false)
+    private static void unchainedConnectWS(String tokenPayload, CallbackInfo ci) {
+        if (ws != null) ws.disconnect();
+        com.bulbat0n.figuraunchained.auth.UnchainedAuth.awaitPlayer();
+        try {
+            String wsUrl = HttpAPIAccessor.invokeGetUri("ws").toString()
+                    .replace("http://", "ws://")
+                    .replace("https://", "wss://");
+                    
+            FiguraMod.LOGGER.info("Connecting WebSocket (Unchained) to: " + wsUrl);
+            
+            ws = new WebSocketFactory()
+                    .setConnectionTimeout(5000)
+                    .createSocket(wsUrl);
+            
+            if (tokenPayload.contains(":")) {
+                ws.addHeader("Authorization", "Bearer " + tokenPayload.split(":", 2)[1]);
+            }
+            ws.addHeader("token", tokenPayload);
+
+            com.bulbat0n.figuraunchained.auth.UnchainedAuth.applyClientHeaders(ws::addHeader);
+                    
+            ws.addListener(new WebSocketAdapter() {
+                @Override
+                public void onBinaryMessage(WebSocket websocket, byte[] binary) throws Exception {
+                    S2CMessageHandler.handle(ByteBuffer.wrap(binary));
+                }
+                
+                @Override
+                public void onError(WebSocket websocket, WebSocketException cause) throws Exception {
+                    FiguraMod.LOGGER.error("WS Error: " + cause.getMessage());
+                }
+
+                @Override
+                public void onConnectError(WebSocket websocket, WebSocketException cause) throws Exception {
+                    FiguraMod.LOGGER.error("WS connect failed: " + cause.getMessage());
+                    NetworkStuff.disconnect("Could not connect to the backend");
+                }
+
+                @Override
+                public void onDisconnected(WebSocket websocket, WebSocketFrame serverCloseFrame, WebSocketFrame clientCloseFrame, boolean closedByServer) throws Exception {
+                    if (serverCloseFrame == null) return;
+                    int code = serverCloseFrame.getCloseCode();
+                    if (code > 4100 && code < 4200) {
+                        NetworkStuff.disconnect(com.bulbat0n.figuraunchained.auth.UnchainedAuth.closeReasonText(serverCloseFrame.getCloseReason()));
+                        return;
+                    }
+                    if (code != 4100) return;
+                    String reason = serverCloseFrame.getCloseReason();
+                    String min = reason == null ? "" : reason.replaceAll("[^0-9A-Za-z.+_\\-]", "");
+                    String message = "Minimum version for your backend is " + min;
+                    NetworkStuff.disconnect("Please update Figura Unchained\n" + message);
+                }
+            });
+            
+            ws.connectAsynchronously();
+        } catch (Exception e) {
+            FiguraMod.LOGGER.error("WebSocket connection error: " + e.getMessage());
+            NetworkStuff.disconnect("Could not connect to the backend");
+        }
+        ci.cancel(); 
+    }
+
+    @Unique
+    private static void unchainedConnect() {
+        int attempt = com.bulbat0n.figuraunchained.auth.UnchainedAuth.beginConnectAttempt();
+        int vStatus = com.bulbat0n.figuraunchained.auth.UnchainedAuth.checkVersionResolving();
+        if (!com.bulbat0n.figuraunchained.auth.UnchainedAuth.isCurrentAttempt(attempt)) {
+            return;
+        }
+        if (vStatus == 0) {
+            com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Connection Error", "Backend is offline or unreachable.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+            NetworkStuff.disconnect(com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint.offlineReason());
+            return;
+        } else if (vStatus == 1) {
+            com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Version Mismatch", "Incompatible Unchained Backend.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+            NetworkStuff.disconnect(null);
+            return;
+        } else if (vStatus == 5) {
+            com.bulbat0n.figuraunchained.gui.UnchainedToast.send("Server identity", "Identity check failed.", org.figuramc.figura.gui.FiguraToast.ToastType.ERROR);
+            NetworkStuff.disconnect(null);
+            return;
+        } else if (vStatus == 3 || vStatus == 4) {
+            NetworkStuff.disconnect(com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint.offlineReason());
+            com.bulbat0n.figuraunchained.gui.ConsentScreen.hintIfNeeded();
+            return;
+        }
+        String tokenPayload = com.bulbat0n.figuraunchained.auth.UnchainedAuth.getLocalUuid();
+        if (com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT != null && !com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT.isEmpty()) {
+            tokenPayload += ":" + com.bulbat0n.figuraunchained.auth.UnchainedAuth.JWT;
+        }
+        authSuccess(tokenPayload);
+        fetchMOTD();
+    }
+}

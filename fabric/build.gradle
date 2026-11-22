@@ -1,0 +1,36 @@
+architectury {
+    platformSetupLoomIde()
+    fabric()
+}
+
+base {
+    archivesName = "figura-unchained"
+}
+version = "${project.mod_version}+mc${project.fabric_minecraft_label}+fabric+figura${project.figura_version}"
+
+dependencies {
+    modImplementation "net.fabricmc:fabric-loader:${project.fabric_loader_version}"
+    modApi "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+    implementation project(path: ":common", configuration: "namedElements")
+
+    modCompileOnly files("../libs/figura-${project.figura_version}+${project.minecraft_version}-fabric-mc.jar")
+}
+
+processResources {
+    from project(":common").sourceSets.main.resources
+
+    inputs.property "version", project.version
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+    filesMatching("figura_unchained_build.properties") {
+        expand "version": project.version
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.withType(Jar).configureEach {
+    from project(":common").sourceSets.main.output
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
