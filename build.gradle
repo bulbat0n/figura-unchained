@@ -1,6 +1,6 @@
 plugins {
-    id "architectury-plugin" version "3.5-SNAPSHOT"
-    id "dev.architectury.loom" version "1.7-SNAPSHOT" apply false
+    id "architectury-plugin" version "3.4.164"
+    id "dev.architectury.loom" version "1.9.436" apply false
 }
 
 architectury {
@@ -33,7 +33,7 @@ subprojects {
 allprojects {
     apply plugin: "java"
     apply plugin: "architectury-plugin"
-    
+
     version = project.mod_version
     group = project.maven_group
 
@@ -41,5 +41,12 @@ allprojects {
         maven { url = "https://maven.fabricmc.net/" }
         maven { url = "https://maven.minecraftforge.net/" }
         mavenCentral()
+    }
+
+    tasks.withType(AbstractArchiveTask).configureEach {
+        preserveFileTimestamps = false
+        reproducibleFileOrder = true
+        dirPermissions { unix("755") }
+        filePermissions { unix("644") }
     }
 }

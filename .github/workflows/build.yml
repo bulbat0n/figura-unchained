@@ -1,0 +1,52 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: gradle/actions/wrapper-validation@8da46b539cd8fe6ab27ca75128919a18d757604c
+
+      - name: Install OpenJDK 21
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends openjdk-21-jdk-headless
+          echo "JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64" >> "$GITHUB_ENV"
+          echo "/usr/lib/jvm/java-21-openjdk-amd64/bin" >> "$GITHUB_PATH"
+
+      - name: Toolchain
+        run: |
+          java -version
+          ./gradlew --version --no-daemon
+
+      - name: Fetch Figura
+        run: bash scripts/fetch-figura.sh
+
+      - name: Build
+        run: ./gradlew build --no-daemon
+
+      - name: SHA-256
+        run: |
+          find fabric/build/libs forge/build/libs -maxdepth 1 -name 'figura-unchained-*.jar' ! -name '*-dev.jar' ! -name '*-sources.jar' | sort | xargs sha256sum | tee SHA256SUMS
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: figura-unchained-1.20.1
+          path: |
+            SHA256SUMS
+            fabric/build/libs/figura-unchained-*.jar
+            forge/build/libs/figura-unchained-*.jar
+            !**/*-dev.jar
+            !**/*-sources.jar
+          if-no-files-found: error

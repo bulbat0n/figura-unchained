@@ -94,6 +94,21 @@ Want total control? You don't have to use the public server. You can host your o
 
 ---
 
+## 🔨 Building from source
+
+You need `git`, `curl`, `sha256sum` and OpenJDK 21 (`openjdk-21-jdk-headless` on Ubuntu 24.04, the same package the CI installs).
+
+```sh
+bash scripts/fetch-figura.sh
+./gradlew build
+```
+
+`scripts/fetch-figura.sh` downloads the Figura jar the addon is compiled against from Modrinth into `libs/` and checks its SHA-256. The addon jars end up in `fabric/build/libs/` and `forge/build/libs/`.
+
+The build is reproducible: the Gradle wrapper and its distribution are pinned by SHA-256, the Gradle plugins by exact version, and jar timestamps, file order and permissions are fixed. The GitHub Actions workflow runs the same commands on Ubuntu 24.04 and prints the SHA-256 of every jar, so a local build with the same JDK gives the same hashes.
+
+---
+
 ## ❗ Disclaimer
 
 **This mod is NOT an official product of the Figura team and is NOT supported by them.** 
