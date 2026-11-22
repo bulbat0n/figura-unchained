@@ -4,7 +4,7 @@ import com.bulbat0n.figuraunchained.endpoint.ConsentState;
 import com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
@@ -128,24 +128,24 @@ public class ConsentScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+    public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         graphics.fill(0, 0, width, height, 0xF0101018);
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        super.render(graphics, mouseX, mouseY, partialTick);
-        graphics.drawCenteredString(font, Component.literal(TITLE).withStyle(ChatFormatting.BOLD), width / 2, titleY, 0xFFFFFFFF);
+    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+        graphics.centeredText(font, Component.literal(TITLE).withStyle(ChatFormatting.BOLD), width / 2, titleY, 0xFFFFFFFF);
         int y = bodyY;
         for (List<FormattedCharSequence> lines : body) {
             for (FormattedCharSequence line : lines) {
-                graphics.drawString(font, line, panelX, y, BODY_COLOR);
+                graphics.text(font, line, panelX, y, BODY_COLOR);
                 y += font.lineHeight;
             }
             y += PARAGRAPH_GAP;
         }
         for (FormattedCharSequence line : noticeLines) {
-            graphics.drawString(font, line, panelX, y, NOTICE_COLOR);
+            graphics.text(font, line, panelX, y, NOTICE_COLOR);
             y += font.lineHeight;
         }
     }

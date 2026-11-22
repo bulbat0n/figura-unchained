@@ -2,7 +2,7 @@ package com.bulbat0n.figuraunchained.command;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.commands.CommandBuildContext;
@@ -23,11 +23,11 @@ public class AuthCommand implements ClientCommandRegistrationCallback {
 
     @Override
     public void register(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext registryAccess) {
-        dispatcher.register(ClientCommandManager.literal("figura-unchained")
+        dispatcher.register(ClientCommands.literal("figura-unchained")
             .executes(context -> usage(context.getSource(), CommandUsage.ROOT))
-            .then(ClientCommandManager.literal("register")
+            .then(ClientCommands.literal("register")
                 .executes(context -> usage(context.getSource(), CommandUsage.REGISTER))
-                .then(ClientCommandManager.argument("password", StringArgumentType.string())
+                .then(ClientCommands.argument("password", StringArgumentType.string())
                     .executes(context -> {
                         String password = StringArgumentType.getString(context, "password");
                         if (password.length() < 6) {
@@ -39,9 +39,9 @@ public class AuthCommand implements ClientCommandRegistrationCallback {
                     })
                 )
             )
-            .then(ClientCommandManager.literal("login")
+            .then(ClientCommands.literal("login")
                 .executes(context -> usage(context.getSource(), CommandUsage.LOGIN))
-                .then(ClientCommandManager.argument("password", StringArgumentType.string())
+                .then(ClientCommands.argument("password", StringArgumentType.string())
                     .executes(context -> {
                         String password = StringArgumentType.getString(context, "password");
                         UnchainedAuth.performAuth("login", password);
@@ -49,12 +49,12 @@ public class AuthCommand implements ClientCommandRegistrationCallback {
                     })
                 )
             )
-            .then(ClientCommandManager.literal("report")
+            .then(ClientCommands.literal("report")
                 .executes(context -> usage(context.getSource(), CommandUsage.REPORT))
-                .then(ClientCommandManager.argument("player", StringArgumentType.word())
+                .then(ClientCommands.argument("player", StringArgumentType.word())
                     .suggests((context, builder) -> SharedSuggestionProvider.suggest(ReportTargets.withAvatars(), builder))
                     .executes(context -> usage(context.getSource(), CommandUsage.REPORT))
-                    .then(ClientCommandManager.argument("reason", StringArgumentType.greedyString())
+                    .then(ClientCommands.argument("reason", StringArgumentType.greedyString())
                         .executes(context -> {
                             UnchainedAuth.performReport(StringArgumentType.getString(context, "player"), StringArgumentType.getString(context, "reason"));
                             return 1;
@@ -62,13 +62,13 @@ public class AuthCommand implements ClientCommandRegistrationCallback {
                     )
                 )
             )
-            .then(ClientCommandManager.literal("consent")
+            .then(ClientCommands.literal("consent")
                 .executes(context -> {
                     ConsentScreen.openLater();
                     return 1;
                 })
             )
-            .then(ClientCommandManager.argument("args", StringArgumentType.greedyString())
+            .then(ClientCommands.argument("args", StringArgumentType.greedyString())
                 .executes(context -> usage(context.getSource(), CommandUsage.ROOT))
             )
         );

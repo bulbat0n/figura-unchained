@@ -6,15 +6,22 @@ architectury {
 base {
     archivesName = "figura-unchained"
 }
-version = "${project.mod_version}+mc${project.fabric_minecraft_label}+fabric+figura${project.figura_version}"
+version = "${project.mod_version}+mc${project.fabric_minecraft_label}+fabric+nofigura${project.nofigura_version}"
+
+configurations {
+    common
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentFabric.extendsFrom common
+}
 
 dependencies {
-    modImplementation "net.fabricmc:fabric-loader:${project.fabric_loader_version}"
-    modApi "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    implementation "net.fabricmc:fabric-loader:${project.fabric_loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
-    implementation project(path: ":common", configuration: "namedElements")
+    common(project(path: ":common")) { transitive false }
 
-    modCompileOnly files("../libs/figura-${project.figura_version}+${project.minecraft_version}-fabric-mc.jar")
+    compileOnly files("../libs/nofigura-${project.nofigura_version}+${project.minecraft_version}-fabric-mc.jar")
 }
 
 processResources {
