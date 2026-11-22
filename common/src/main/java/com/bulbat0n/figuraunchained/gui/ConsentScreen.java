@@ -4,7 +4,7 @@ import com.bulbat0n.figuraunchained.endpoint.ConsentState;
 import com.bulbat0n.figuraunchained.endpoint.UnchainedEndpoint;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
@@ -64,7 +64,7 @@ public class ConsentScreen extends Screen {
     }
 
     public static void hintIfNeeded() {
-        Screen screen = Minecraft.getInstance().screen;
+        Screen screen = Minecraft.getInstance().gui.screen();
         if (screen instanceof TitleScreen || screen instanceof ConsentScreen || screen instanceof ChangeScreen) {
             return;
         }
@@ -82,13 +82,13 @@ public class ConsentScreen extends Screen {
             }
             Minecraft minecraft = Minecraft.getInstance();
             minecraft.execute(() -> {
-                if (minecraft.screen instanceof ConsentScreen || minecraft.screen instanceof ChangeScreen) {
+                if (minecraft.gui.screen() instanceof ConsentScreen || minecraft.gui.screen() instanceof ChangeScreen) {
                     return;
                 }
                 if (UnchainedEndpoint.pending() != null) {
-                    minecraft.setScreen(new ChangeScreen(minecraft.screen));
+                    minecraft.gui.setScreen(new ChangeScreen(minecraft.gui.screen()));
                 } else {
-                    minecraft.setScreen(new ConsentScreen(minecraft.screen));
+                    minecraft.gui.setScreen(new ConsentScreen(minecraft.gui.screen()));
                 }
             });
         }, "figura-unchained-consent");
@@ -128,24 +128,24 @@ public class ConsentScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+    public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         graphics.fill(0, 0, width, height, 0xF0101018);
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        super.render(graphics, mouseX, mouseY, partialTick);
-        graphics.drawCenteredString(font, Component.literal(TITLE).withStyle(ChatFormatting.BOLD), width / 2, titleY, 0xFFFFFFFF);
+    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+        graphics.centeredText(font, Component.literal(TITLE).withStyle(ChatFormatting.BOLD), width / 2, titleY, 0xFFFFFFFF);
         int y = bodyY;
         for (List<FormattedCharSequence> lines : body) {
             for (FormattedCharSequence line : lines) {
-                graphics.drawString(font, line, panelX, y, BODY_COLOR);
+                graphics.text(font, line, panelX, y, BODY_COLOR);
                 y += font.lineHeight;
             }
             y += PARAGRAPH_GAP;
         }
         for (FormattedCharSequence line : noticeLines) {
-            graphics.drawString(font, line, panelX, y, NOTICE_COLOR);
+            graphics.text(font, line, panelX, y, NOTICE_COLOR);
             y += font.lineHeight;
         }
     }
@@ -165,7 +165,7 @@ public class ConsentScreen extends Screen {
         }
         UnchainedEndpoint.decide(decision);
         NetworkStuff.reAuth();
-        Minecraft.getInstance().setScreen(next);
+        Minecraft.getInstance().gui.setScreen(next);
         if (decision == ConsentState.Decision.YES) {
             ChangeScreen.openWhenReady();
         }
