@@ -33,7 +33,9 @@ gh release download "$TAG" --repo "$repo" --dir modrinth/files --pattern '*.jar'
 (cd modrinth/files && sha256sum --check --strict SHA256SUMS)
 
 project_id=$(mr "$api/project/$MODRINTH_PROJECT" | jq -er .id)
-mr "$api/tag/game_version" | jq -r '.[].version' > modrinth/game_versions
+mr "$api/tag/game_version" | jq -r '.[] | [.version, .version_type] | @tsv' > modrinth/game_version_tags
+cut -f1 modrinth/game_version_tags > modrinth/game_versions
+awk -F'\t' '$2 == "release" { print $1 }' modrinth/game_version_tags | sort -V > modrinth/releases
 mr "$api/tag/loader" | jq -r '.[].name' > modrinth/loaders
 mr "$api/project/$project_id/version" | jq -r '.[] | [.version_number, (.files[0].hashes.sha512 // "")] | @tsv' > modrinth/existing
 
@@ -43,14 +45,24 @@ notes=""
 : > modrinth/plan
 for jar in modrinth/files/*.jar; do
     name=$(basename "$jar")
-    [[ "$name" =~ ^figura-unchained-([0-9]+\.[0-9]+\.[0-9]+)\+mc([0-9.]+)\+(fabric|forge|neoforge)\+(figura|nofigura)([0-9.]+)\.jar$ ]] || fail "Unexpected file name $name"
+    [[ "$name" =~ ^figura-unchained-([0-9]+\.[0-9]+\.[0-9]+)\+mc([0-9.]+(-[0-9.]+)?)\+(fabric|forge|neoforge)\+(figura|nofigura)([0-9.]+)\.jar$ ]] || fail "Unexpected file name $name"
     mod_version=${BASH_REMATCH[1]}
     mc=${BASH_REMATCH[2]}
-    loader=${BASH_REMATCH[3]}
-    base=${BASH_REMATCH[4]}
-    base_version=${BASH_REMATCH[5]}
+    loader=${BASH_REMATCH[4]}
+    base=${BASH_REMATCH[5]}
+    base_version=${BASH_REMATCH[6]}
+    mc_top=${mc##*-}
+    if [[ "$mc" == *-* ]]; then
+        mc_low=${mc%%-*}
+        games=$(awk -v lo="$mc_low" -v hi="$mc_top" '$0 == lo { on = 1 } on { print } $0 == hi { exit }' modrinth/releases | paste -sd' ')
+        [[ "$games" == "$mc_low "* && "$games" == *" $mc_top" ]] || fail "Cannot expand Minecraft range $mc from Modrinth release list"
+    else
+        games=$mc
+    fi
     [ "$mod_version" = "$TAG" ] || fail "$name is not version $TAG"
-    grep -qxF "$mc" modrinth/game_versions || fail "Modrinth has no game version $mc"
+    for game in $games; do
+        grep -qxF "$game" modrinth/game_versions || fail "Modrinth has no game version $game"
+    done
     grep -qxF "$loader" modrinth/loaders || fail "Modrinth has no loader $loader"
     gh attestation verify "$jar" --repo "$repo" --signer-workflow "$signer" --deny-self-hosted-runners > /dev/null \
         || fail "$name has no build attestation from $signer"
@@ -76,7 +88,7 @@ for jar in modrinth/files/*.jar; do
         forge) rank=2 ;;
         neoforge) rank=3 ;;
     esac
-    printf '%s\t%s\t%s|%s|%s|%s|%s|%s|%s\n' "$mc" "$rank" "$jar" "$mc" "$loader" "$base" "$number" "$sha512" "$title" >> modrinth/plan
+    printf '%s\t%s\t%s|%s|%s|%s|%s|%s|%s\n' "$mc_top" "$rank" "$jar" "$games" "$loader" "$base" "$number" "$sha512" "$title" >> modrinth/plan
 done
 mapfile -t plan < <(sort -t $'\t' -k1,1V -k2,2n modrinth/plan | cut -f3)
 [ "${#plan[@]}" -gt 0 ] || { echo "Nothing to upload"; exit 0; }
@@ -87,14 +99,15 @@ done
 
 first=1
 for entry in "${plan[@]}"; do
-    IFS='|' read -r jar mc loader base number sha512 title <<< "$entry"
+    IFS='|' read -r jar games loader base number sha512 title <<< "$entry"
+    mc_top=${games##* }
     [ "$first" = 1 ] || sleep 3
     first=0
     sha256=$(sha256sum "$jar" | cut -d' ' -f1)
 
     if [ "$base" = nofigura ]; then
         deps="[{\"project_id\":\"$nofigura_project\",\"dependency_type\":\"required\"}]"
-    elif [[ "$figura_on_modrinth" == *" $mc "* ]]; then
+    elif [[ "$figura_on_modrinth" == *" $mc_top "* ]]; then
         deps="[{\"project_id\":\"$figura_project\",\"dependency_type\":\"required\"}]"
     else
         deps="[]"
@@ -106,11 +119,11 @@ for entry in "${plan[@]}"; do
         --arg name "$title" \
         --arg number "$number" \
         --arg changelog "$changelog" \
-        --arg mc "$mc" \
+        --arg games "$games" \
         --arg loader "$loader" \
         --arg type "$version_type" \
         --argjson deps "$deps" \
-        '{project_id: $project, name: $name, version_number: $number, changelog: $changelog, dependencies: $deps, game_versions: [$mc], loaders: [$loader], version_type: $type, featured: false, status: "listed", file_parts: ["file"], primary_file: "file"}')
+        '{project_id: $project, name: $name, version_number: $number, changelog: $changelog, dependencies: $deps, game_versions: ($games | split(" ")), loaders: [$loader], version_type: $type, featured: false, status: "listed", file_parts: ["file"], primary_file: "file"}')
 
     response=$(mr -X POST "$api/version" --form-string "data=$data" -F "file=@$jar;type=application/java-archive")
     uploaded=$(jq -r '.files[0].hashes.sha512' <<< "$response")

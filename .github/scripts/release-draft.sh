@@ -38,7 +38,11 @@ for branch in $BRANCHES; do
 
     for jar in "${jars[@]}"; do
         name=$(basename "$jar")
-        [[ "$name" == "figura-unchained-$VERSION+mc$branch+"* ]] || fail "$name from branch $branch is not $VERSION for $branch"
+        [[ "$name" =~ ^figura-unchained-([0-9]+\.[0-9]+\.[0-9]+)\+mc([0-9.]+(-[0-9.]+)?)\+(fabric|forge|neoforge)\+ ]] || fail "Unexpected file name $name from branch $branch"
+        jar_version=${BASH_REMATCH[1]}
+        label=${BASH_REMATCH[2]}
+        [ "$jar_version" = "$VERSION" ] || fail "$name from branch $branch is not version $VERSION"
+        [ "${label##*-}" = "$branch" ] || fail "$name from branch $branch is not built for $branch"
         [ ! -e "release/$name" ] || fail "Two builds produced $name"
         gh attestation verify "$jar" --repo "$repo" \
             --signer-workflow "$signer" \
