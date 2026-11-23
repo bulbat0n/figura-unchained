@@ -1,0 +1,40 @@
+name: modrinth
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      Version:
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: modrinth
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-24.04
+    environment: modrinth
+    permissions:
+      contents: read
+      attestations: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event.release.tag_name || inputs.Version }}
+      MODRINTH_PROJECT: figura-unchained
+      MODRINTH_VERSION_TYPE: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Upload the release jars to Modrinth
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+        run: bash .github/scripts/modrinth-upload.sh
