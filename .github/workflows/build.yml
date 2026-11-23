@@ -34,7 +34,15 @@ jobs:
       - name: Toolchain
         run: |
           java -version
-          ./gradlew --version --no-daemon
+          for attempt in 1 2 3 4 5; do
+            if ./gradlew --version --no-daemon; then
+              break
+            fi
+            if [ "$attempt" = 5 ]; then
+              exit 1
+            fi
+            sleep $((attempt * 30))
+          done
 
       - name: Fetch Figura
         run: bash scripts/fetch-figura.sh

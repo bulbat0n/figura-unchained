@@ -28,6 +28,13 @@ echo "$FIGURA_WRAPPER_SHA256  $SRC/gradle/wrapper/gradle-wrapper.jar" | sha256su
 grep -qxF "$FIGURA_GRADLE_URL" "$SRC/gradle/wrapper/gradle-wrapper.properties"
 printf '\ndistributionSha256Sum=%s\n' "$FIGURA_GRADLE_SHA256" >> "$SRC/gradle/wrapper/gradle-wrapper.properties"
 
+for attempt in 1 2 3 4 5; do
+    if (cd "$SRC" && JAVA_HOME="$FIGURA_JAVA_HOME" sh ./gradlew --no-daemon --version); then
+        break
+    fi
+    [ "$attempt" -lt 5 ] || exit 1
+    sleep $((attempt * 30))
+done
 (cd "$SRC" && JAVA_HOME="$FIGURA_JAVA_HOME" sh ./gradlew --no-daemon :fabric:remapJar)
 
 mkdir -p libs
